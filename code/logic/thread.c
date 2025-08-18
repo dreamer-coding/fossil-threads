@@ -11,6 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
+#define _POSIX_C_SOURCE 199309L
 #include "fossil/threads/thread.h"
 
 #include <string.h> /* memset */

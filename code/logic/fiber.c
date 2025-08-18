@@ -24,11 +24,16 @@
 #endif
 
 /* Thread-local pointer to current fiber */
-#if defined(_WIN32)
-__declspec(thread) static fossil_threads_fiber_t *fossil__current_fiber = NULL;
+/* Portable thread-local storage macro */
+#if defined(_MSC_VER)
+#  define FOSSIL_TLS __declspec(thread)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define FOSSIL_TLS _Thread_local
 #else
-static __thread fossil_threads_fiber_t *fossil__current_fiber = NULL;
+#  define FOSSIL_TLS __thread
 #endif
+
+static FOSSIL_TLS fossil_threads_fiber_t *fossil__current_fiber = NULL;
 
 #if defined(_WIN32)
 

@@ -44,10 +44,15 @@
 #endif
 
 /* Thread-local storage for the 'current fiber' pointer */
-#if defined(_WIN32)
-__declspec(thread) static fossil_threads_fiber_t *fossil__current_fiber = NULL;
+#/* Thread-local pointer to current fiber */
+#if defined(FOSSIL_FIBER_BACKEND_WINDOWS)
+#  if defined(_MSC_VER)
+     __declspec(thread) static fossil_threads_fiber_t *fossil__current_fiber = NULL;
+#  else
+     static __thread fossil_threads_fiber_t *fossil__current_fiber = NULL;
+#  endif
 #else
-static _Thread_local fossil_threads_fiber_t *fossil__current_fiber = NULL;
+     static __thread fossil_threads_fiber_t *fossil__current_fiber = NULL;
 #endif
 
 /* =========================

@@ -11,6 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
+#define _POSIX_C_SOURCE 200809L
 #include "fossil/threads/cond.h"
 #include <string.h>
 #include <stdlib.h>

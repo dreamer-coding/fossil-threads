@@ -40,18 +40,19 @@ enum {
     FOSSIL_GHOST_EINTERNAL= 199
 };
 
-/* ---------- Types ---------- */
-
-/* Ghost thread entry function */
-typedef void (*fossil_threads_ghost_func)(void *arg);
+/* ---------- Ghost Thread Types ---------- */
+typedef void (*fossil_threads_ghost_func)(void *arg, void **state);
 
 /* Ghost thread handle */
 typedef struct fossil_threads_ghost {
-    char id[64];                     /* unique global ID */
-    void *state;                     /* application state */
-    fossil_threads_ghost_func func;  /* entry function */
-    void *arg;                       /* user data */
-    int finished;                    /* has the ghost thread completed */
+    char id[64];                     /* Unique ID */
+    void *state;                     /* Current state */
+    void **candidates;               /* Optional quantum candidates */
+    size_t candidate_count;
+    fossil_threads_ghost_func func;  /* Step function */
+    void *arg;
+    int finished;
+    int step_index;
 } fossil_threads_ghost_t;
 
 /* ---------- Lifecycle ---------- */
@@ -60,10 +61,28 @@ typedef struct fossil_threads_ghost {
 // Function prototypes
 // *****************************************************************************
 
-/* Initialize a ghost thread system for the current process/thread */
+/**
+ * @brief Initialize the Ghost Thread system.
+ *
+ * Sets up internal data structures, including the ledger and scheduling queue,
+ * preparing the system for creating and running ghost threads.
+ *
+ * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+ */
 int fossil_threads_ghost_init(void);
 
-/* Create a ghost thread with a unique ID */
+/**
+ * @brief Create a new ghost thread.
+ *
+ * Initializes a ghost thread structure with a unique ID, entry function, and user argument.
+ * Records the initial state in the ledger for tracking and auditing purposes.
+ *
+ * @param ghost Pointer to a pre-allocated ghost thread structure.
+ * @param id Unique string identifier for the ghost thread.
+ * @param func Function to be called for each step of the ghost thread.
+ * @param arg User-provided argument passed to the step function.
+ * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+ */
 int fossil_threads_ghost_create(
     fossil_threads_ghost_t *ghost,
     const char *id,
@@ -71,16 +90,65 @@ int fossil_threads_ghost_create(
     void *arg
 );
 
-/* Execute the next step of the ghost thread (consensus-ordered) */
+/**
+ * @brief Execute a single step of a ghost thread.
+ *
+ * Calls the ghost thread's step function, updates its state, and records the
+ * resulting state in the ledger. If the thread has speculative candidates,
+ * they are collapsed to a single state.
+ *
+ * @param ghost Pointer to the ghost thread to execute.
+ * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+ */
 int fossil_threads_ghost_step(fossil_threads_ghost_t *ghost);
 
-/* Query current state */
+/**
+ * @brief Add a ghost thread to the scheduling queue.
+ *
+ * The ghost thread will be executed in round-robin order when
+ * fossil_threads_ghost_schedule() is called.
+ *
+ * @param ghost Pointer to the ghost thread to enqueue.
+ * @return FOSSIL_GHOST_OK on success, or an error code if the queue is full or invalid.
+ */
+int fossil_threads_ghost_queue_add(fossil_threads_ghost_t *ghost);
+
+/**
+ * @brief Execute one scheduling round for all queued ghost threads.
+ *
+ * Iterates through the queue and executes one step for each ghost thread that is not finished.
+ * This provides cooperative scheduling and deterministic ordering of ghost thread execution.
+ *
+ * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+ */
+int fossil_threads_ghost_schedule(void);
+
+/**
+ * @brief Retrieve the current state of a ghost thread.
+ *
+ * Provides access to the ghost thread's latest state after execution steps.
+ *
+ * @param ghost Pointer to the ghost thread.
+ * @param out_state Output parameter to receive the current state pointer.
+ * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+ */
 int fossil_threads_ghost_state(fossil_threads_ghost_t *ghost, void **out_state);
 
-/* Check if the ghost thread has finished */
+/**
+ * @brief Check if a ghost thread has finished execution.
+ *
+ * @param ghost Pointer to the ghost thread.
+ * @return 1 if finished, 0 otherwise.
+ */
 int fossil_threads_ghost_finished(fossil_threads_ghost_t *ghost);
 
-/* Dispose of ghost thread resources */
+/**
+ * @brief Dispose of a ghost thread and free associated resources.
+ *
+ * Clears candidate states, releases memory, and marks the ghost thread as finished.
+ *
+ * @param ghost Pointer to the ghost thread to dispose.
+ */
 void fossil_threads_ghost_dispose(fossil_threads_ghost_t *ghost);
 
 #ifdef __cplusplus

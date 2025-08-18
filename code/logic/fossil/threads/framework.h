@@ -15,5 +15,7 @@
 #define FOSSIL_THREADS_FRAMEWORK_H
 
 #include "thread.h"
+#include "mutex.h"
+#include "cond.h"
 
 #endif /* FOSSIL_THREADS_FRAMEWORK_H */

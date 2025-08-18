@@ -29,18 +29,29 @@ extern "C"
 #  define FOSSIL_THREADS_API
 #endif
 
-/* ---------- Types ---------- */
+/* ---------- Error codes ---------- */
+enum {
+    FOSSIL_FIBER_OK       = 0,
+    FOSSIL_FIBER_EINVAL   = 22,   /* invalid argument */
+    FOSSIL_FIBER_EBUSY    = 16,   /* wrong state/busy */
+    FOSSIL_FIBER_ENOMEM   = 12,   /* allocation failure */
+    FOSSIL_FIBER_ENOTSUP  = 95,   /* backend not supported on this platform */
+    FOSSIL_FIBER_EINTERNAL= 199   /* generic failure */
+};
 
-/* Fiber entry point */
+/* ---------- Types ---------- */
 typedef void (*fossil_threads_fiber_func)(void *arg);
 
-/* Fiber handle */
 typedef struct fossil_threads_fiber {
-    void *handle;        /* OS or library specific */
-    fossil_threads_fiber_func func;
-    void *arg;
-    int finished;
+    void *handle;                   /* OS/backend handle */
+    fossil_threads_fiber_func func; /* user entry (POSIX backend) */
+    void *arg;                      /* user data (POSIX backend) */
+    int finished;                   /* set when user func returns */
+    size_t stack_size;              /* for POSIX backend */
 } fossil_threads_fiber_t;
+
+/* A convenience alias for the “main/scheduler” fiber of a thread. */
+typedef fossil_threads_fiber_t fossil_threads_fiber_main_t;
 
 /* ---------- Lifecycle ---------- */
 
@@ -48,27 +59,39 @@ typedef struct fossil_threads_fiber {
 // Function prototypes
 // *****************************************************************************
 
-/* Convert current thread to fiber context (required before creating fibers). */
-FOSSIL_THREADS_API int fossil_threads_fiber_self(fossil_threads_fiber_t *out);
+/* Convert the *current OS thread* into a fiber and store as main/scheduler.
+   Must be called once per OS thread before creating/using other fibers. */
+FOSSIL_THREADS_API int
+fossil_threads_fiber_init_self(fossil_threads_fiber_main_t *out_main);
 
-/* Create a new fiber with given stack size (0 = default). */
-FOSSIL_THREADS_API int fossil_threads_fiber_create(
+/* Create a new fiber with `stack_size` bytes (0 = backend default). */
+FOSSIL_THREADS_API int
+fossil_threads_fiber_create(
     fossil_threads_fiber_t *fiber,
     fossil_threads_fiber_func func,
     void *arg,
     size_t stack_size
 );
 
-/* Switch execution to the given fiber. */
-FOSSIL_THREADS_API int fossil_threads_fiber_switch(
-    fossil_threads_fiber_t *to
-);
+/* Switch to the target fiber (cooperative). Returns when the target yields. */
+FOSSIL_THREADS_API int
+fossil_threads_fiber_resume(fossil_threads_fiber_t *to);
 
-/* Get the currently running fiber handle. */
-FOSSIL_THREADS_API fossil_threads_fiber_t* fossil_threads_fiber_current(void);
+/* Yield from the current fiber to a specific target (commonly the main). */
+FOSSIL_THREADS_API int
+fossil_threads_fiber_yield_to(fossil_threads_fiber_t *to);
 
-/* Destroy fiber (stack freed). Cannot destroy current fiber. */
-FOSSIL_THREADS_API void fossil_threads_fiber_dispose(fossil_threads_fiber_t *fiber);
+/* Get the currently running fiber object for this OS thread (may be NULL before init). */
+FOSSIL_THREADS_API fossil_threads_fiber_t*
+fossil_threads_fiber_current(void);
+
+/* Destroy a fiber. It must not be the currently running fiber. */
+FOSSIL_THREADS_API void
+fossil_threads_fiber_dispose(fossil_threads_fiber_t *fiber);
+
+/* Utility: has the fiber finished running its entry function? */
+FOSSIL_THREADS_API int
+fossil_threads_fiber_finished(const fossil_threads_fiber_t *fiber);
 
 #ifdef __cplusplus
 }

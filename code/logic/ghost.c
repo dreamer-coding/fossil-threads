@@ -16,6 +16,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <stddef.h>  /* for size_t */
+
+#if defined(_WIN32) || defined(_WIN64)
+    #include <BaseTsd.h>
+    typedef SSIZE_T ssize_t;
+#else
+    #include <sys/types.h>
+#endif
 
 /* ---------- Simple ledger entry ---------- */
 typedef struct fossil__ledger_entry {

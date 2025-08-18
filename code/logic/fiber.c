@@ -14,7 +14,7 @@
 #include "fossil/threads/fiber.h"
 #include <stdlib.h>
 #include <string.h>
-#include <setjump.h>
+#include <setjmp.h>
 
 #if defined(_WIN32)
 #  define WIN32_LEAN_AND_MEAN

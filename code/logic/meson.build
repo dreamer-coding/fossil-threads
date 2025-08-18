@@ -9,7 +9,7 @@ else
 endif
 
 fossil_threads_lib = static_library('fossil-thread',
-    files('thread.c', 'mutex.c', 'cond.c', 'fiber.c'),
+    files('thread.c', 'mutex.c', 'cond.c'),
     install: true,
     dependencies: [cc.find_library('m', required: false), winsock_dep],
     include_directories: dir)

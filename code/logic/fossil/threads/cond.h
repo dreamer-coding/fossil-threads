@@ -14,6 +14,8 @@
 #ifndef FOSSIL_THREADS_COND_H
 #define FOSSIL_THREADS_COND_H
 
+#include "mutex.h"
+
 #ifdef __cplusplus
 extern "C"
 {

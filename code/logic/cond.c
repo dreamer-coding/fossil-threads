@@ -14,6 +14,7 @@
 #include "fossil/threads/cond.h"
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #if defined(_WIN32)
 #  define WIN32_LEAN_AND_MEAN

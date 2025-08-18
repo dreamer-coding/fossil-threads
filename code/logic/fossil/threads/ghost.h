@@ -40,16 +40,27 @@ enum {
     FOSSIL_GHOST_EINTERNAL= 199
 };
 
-/* ---------- Ghost Thread Types ---------- */
-typedef void (*fossil_threads_ghost_func)(void *arg, void **state);
+/* ---------- Candidate (speculative) ---------- */
+/* Candidate payload is opaque; 'tag' is a short string used for deterministic hashing and audit. */
+typedef struct fossil_threads_ghost_candidate {
+    void *data;       /* pointer to candidate state (opaque) */
+    size_t size;      /* size of data or 0 if unknown */
+    char tag[64];     /* small tag/id describing candidate (must be NUL-terminated) */
+} fossil_threads_ghost_candidate_t;
+
+/* Ghost thread step function:
+ *   - called when executing a non-speculative step;
+ *   - can also be NULL for ghosts that only operate via proposals.
+ * It receives 'arg' and returns a pointer to a new state via out_state (caller-managed). */
+typedef void (*fossil_threads_ghost_func)(void *arg, void **out_state);
 
 /* Ghost thread handle */
 typedef struct fossil_threads_ghost {
     char id[64];                     /* Unique ID */
-    void *state;                     /* Current state */
-    void **candidates;               /* Optional quantum candidates */
+    void *state;                     /* Current (collapsed) state */
+    fossil_threads_ghost_candidate_t *candidates; /* last-proposed candidate array (owned by caller) */
     size_t candidate_count;
-    fossil_threads_ghost_func func;  /* Step function */
+    fossil_threads_ghost_func func;  /* Step function (non-speculative) */
     void *arg;
     int finished;
     int step_index;
@@ -89,6 +100,23 @@ int fossil_threads_ghost_create(
     fossil_threads_ghost_func func,
     void *arg
 );
+
+/* Propose N candidates for this ghost's next step.
+   - candidates: pointer to an array (length count) of fossil_threads_ghost_candidate_t
+   - Ownership: library stores the pointer only until collapse; caller must keep candidate array & payload valid
+     until fossil_threads_ghost_collapse_by_consensus() has been called for that proposal.
+*/
+int fossil_threads_ghost_propose_candidates(
+    fossil_threads_ghost_t *ghost,
+    fossil_threads_ghost_candidate_t *candidates,
+    size_t count
+);
+
+/* Deterministically collapse the most-recent proposal for a ghost using ledger-derived consensus.
+   - The function selects one candidate and installs it into ghost->state.
+   - Returns index of selected candidate on success (>=0), or negative error code.
+*/
+int fossil_threads_ghost_collapse_by_consensus(fossil_threads_ghost_t *ghost);
 
 /**
  * @brief Execute a single step of a ghost thread.

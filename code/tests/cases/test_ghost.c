@@ -93,8 +93,8 @@ FOSSIL_TEST_CASE(c_thread_ghost_propose_and_collapse) {
 
     int state1 = 1, state2 = 2;
     fossil_threads_ghost_candidate_t candidates[2] = {
-        { "A", (size_t)state1, 0 },
-        { "B", (size_t)state2, 0 }
+        { "A", { (size_t)state1 }, { 0 } },
+        { "B", { (size_t)state2 }, { 0 } }
     };
 
     rc = fossil_threads_ghost_create(&ghost, "ghost3", NULL, NULL);
@@ -165,5 +165,5 @@ FOSSIL_TEST_GROUP(c_ghost_tests) {
     FOSSIL_TEST_ADD(c_ghost_fixture, c_thread_ghost_queue_and_schedule);
     FOSSIL_TEST_ADD(c_ghost_fixture, c_thread_ghost_finished_and_dispose);
 
-    FOSSIL_TEST_REGISTER(c_ghost_tests);
+    FOSSIL_TEST_REGISTER(c_ghost_fixture);
 } // end of tests

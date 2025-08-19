@@ -93,8 +93,8 @@ FOSSIL_TEST_CASE(c_thread_ghost_propose_and_collapse) {
 
     int state1 = 1, state2 = 2;
     fossil_threads_ghost_candidate_t candidates[2] = {
-        { "A", &state1 },
-        { "B", &state2 }
+        { "A", (size_t)state1, 0 },
+        { "B", (size_t)state2, 0 }
     };
 
     rc = fossil_threads_ghost_create(&ghost, "ghost3", NULL, NULL);

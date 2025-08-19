@@ -1,4 +1,5 @@
 dir = include_directories('.')
+cc = meson.get_compiler('cc')
 
 fossil_threads_lib = static_library('fossil-thread',
     files('thread.c', 'mutex.c', 'cond.c', 'ghost.c'),

@@ -40,15 +40,102 @@ FOSSIL_TEARDOWN(c_thread_fixture) {
 // as samples for library usage.
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_CASE(c_thread_blaink) {
-    ASSUME_ITS_TRUE(1);
+static void *test_thread_func_return_arg(void *arg) {
+    return arg;
+}
+
+static void *test_thread_func_set_flag(void *arg) {
+    volatile int *f = (volatile int *)arg;
+    *f = 1;
+    return NULL;
+}
+
+static void *test_thread_func_store_id(void *arg) {
+    unsigned long *tid = (unsigned long *)arg;
+    *tid = fossil_threads_thread_id();
+    return NULL;
+}
+
+FOSSIL_TEST_CASE(c_thread_create_and_join) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    int arg = 42;
+    void *ret = NULL;
+
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_return_arg, &arg);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+
+    rc = fossil_threads_thread_join(&thread, &ret);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+    ASSUME_ITS_EQUAL_I32(*(int *)ret, 42);
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_create_and_detach) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    volatile int flag = 0;
+
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_set_flag, (void *)&flag);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+
+    rc = fossil_threads_thread_detach(&thread);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+
+    // Wait for the thread to set the flag
+    for (int i = 0; i < 100 && flag == 0; ++i) {
+        fossil_threads_thread_sleep_ms(1);
+    }
+    ASSUME_ITS_EQUAL_I32(flag, 1);
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_yield_and_sleep) {
+    int rc = fossil_threads_thread_yield();
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+
+    rc = fossil_threads_thread_sleep_ms(10);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+}
+
+FOSSIL_TEST_CASE(c_thread_id_and_equal) {
+    fossil_threads_thread_t thread1, thread2;
+    fossil_threads_thread_init(&thread1);
+    fossil_threads_thread_init(&thread2);
+
+    unsigned long main_id = fossil_threads_thread_id();
+    ASSUME_ITS_TRUE(main_id != 0);
+
+    // Thread function that stores its thread id
+    unsigned long thread_id = 0;
+    int rc = fossil_threads_thread_create(&thread1, test_thread_func_store_id, &thread_id);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+    rc = fossil_threads_thread_join(&thread1, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+
+    ASSUME_ITS_TRUE(thread_id != 0);
+    ASSUME_ITS_TRUE(thread_id != main_id);
+
+    // Compare main thread to itself
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(&thread1, &thread1));
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(&thread1, &thread2));
+
+    fossil_threads_thread_dispose(&thread1);
+    fossil_threads_thread_dispose(&thread2);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_thread_tests) {    
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_blaink);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_join);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_detach);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_yield_and_sleep);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_id_and_equal);
 
     FOSSIL_TEST_REGISTER(c_thread_fixture);
 } // end of tests

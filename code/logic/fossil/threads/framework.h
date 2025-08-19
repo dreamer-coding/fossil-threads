@@ -16,6 +16,7 @@
 
 #include "thread.h"
 #include "mutex.h"
+#include "ghost.h"
 #include "cond.h"
 
 #endif /* FOSSIL_THREADS_FRAMEWORK_H */

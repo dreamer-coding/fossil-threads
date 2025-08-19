@@ -82,7 +82,7 @@ FOSSIL_TEST_CASE(cpp_thread_ghost_propose_and_collapse) {
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_GHOST_OK);
 
     int state1 = 1, state2 = 2;
-    std::vector<fossil_threads_ghost_candidate_t> candidates = {
+    std::vector<fossil_threads_ghost_candidate> candidates = {
         { "A", &state1 },
         { "B", &state2 }
     };

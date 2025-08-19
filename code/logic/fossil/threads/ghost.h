@@ -189,7 +189,116 @@ namespace fossil {
 
 namespace threads {
 
+    class Ghost {
+    public:
+        /**
+         * @brief Construct a new Ghost thread.
+         *
+         * Initializes a ghost thread with the specified ID, step function, and user argument.
+         * Throws std::runtime_error if creation fails.
+         *
+         * @param id   Unique identifier for the ghost thread.
+         * @param func Step function for the ghost thread.
+         * @param arg  User argument passed to the step function.
+         */
+        Ghost(const std::string& id, fossil_threads_ghost_func func, void* arg)
+            : ghost_{}
+        {
+            int rc = fossil_threads_ghost_create(&ghost_, id.c_str(), func, arg);
+            if (rc != FOSSIL_GHOST_OK)
+                throw std::runtime_error("Failed to create ghost thread");
+        }
 
+        /**
+         * @brief Destructor. Disposes of the ghost thread and releases resources.
+         */
+        ~Ghost() {
+            fossil_threads_ghost_dispose(&ghost_);
+        }
+
+        /**
+         * @brief Propose a set of candidate states for the next step.
+         *
+         * @param candidates Vector of candidate states to propose.
+         * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+         */
+        int propose_candidates(std::vector<fossil_threads_ghost_candidate_t>& candidates) {
+            return fossil_threads_ghost_propose_candidates(
+                &ghost_, candidates.data(), candidates.size());
+        }
+
+        /**
+         * @brief Collapse the most recent proposal by consensus.
+         *
+         * Selects one candidate deterministically and installs it as the new state.
+         * @return Index of the selected candidate on success (>=0), or negative error code.
+         */
+        int collapse_by_consensus() {
+            return fossil_threads_ghost_collapse_by_consensus(&ghost_);
+        }
+
+        /**
+         * @brief Execute a single step of the ghost thread.
+         *
+         * Calls the step function and updates the ghost's state.
+         * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+         */
+        int step() {
+            return fossil_threads_ghost_step(&ghost_);
+        }
+
+        /**
+         * @brief Add this ghost thread to the scheduling queue.
+         *
+         * @return FOSSIL_GHOST_OK on success, or an error code if the queue is full or invalid.
+         */
+        int queue_add() {
+            return fossil_threads_ghost_queue_add(&ghost_);
+        }
+
+        /**
+         * @brief Execute one scheduling round for all queued ghost threads.
+         *
+         * Static method to step all queued ghost threads in round-robin order.
+         * @return FOSSIL_GHOST_OK on success, or an error code on failure.
+         */
+        static int schedule() {
+            return fossil_threads_ghost_schedule();
+        }
+
+        /**
+         * @brief Retrieve the current state of the ghost thread.
+         *
+         * @return Pointer to the current state.
+         * @throws std::runtime_error if retrieval fails.
+         */
+        void* state() {
+            void* out = nullptr;
+            int rc = fossil_threads_ghost_state(&ghost_, &out);
+            if (rc != FOSSIL_GHOST_OK)
+                throw std::runtime_error("Failed to get ghost state");
+            return out;
+        }
+
+        /**
+         * @brief Check if the ghost thread has finished execution.
+         *
+         * @return true if finished, false otherwise.
+         */
+        bool finished() {
+            return fossil_threads_ghost_finished(&ghost_) != 0;
+        }
+
+        /**
+         * @brief Get the underlying native ghost thread handle.
+         *
+         * @return Pointer to the native fossil_threads_ghost_t structure.
+         */
+        fossil_threads_ghost_t* native_handle() { return &ghost_; }
+
+    private:
+        fossil_threads_ghost_t ghost_; /**< Underlying C ghost thread structure. */
+    };
 
 } // namespace threads
 

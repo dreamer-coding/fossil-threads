@@ -128,6 +128,7 @@ FOSSIL_TEST_CASE(c_thread_id_and_equal) {
     fossil_threads_thread_dispose(&thread2);
 }
 
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *

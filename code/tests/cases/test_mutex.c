@@ -66,7 +66,8 @@ FOSSIL_TEST_CASE(c_thread_mutex_trylock) {
     int rc = fossil_threads_mutex_init(&m);
     ASSUME_ITS_EQUAL_I32(rc, 0);
 
-    rc = fossil_threads_mutex_trylock(&m);
+    // Lock the mutex
+    rc = fossil_threads_mutex_lock(&m);
     ASSUME_ITS_EQUAL_I32(rc, 0);
 
     // Try to lock again, should get EBUSY

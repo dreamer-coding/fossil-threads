@@ -104,8 +104,15 @@ FOSSIL_TEST_CASE(cpp_thread_id_and_equal) {
     ASSUME_ITS_TRUE(thread_id != 0);
     ASSUME_ITS_TRUE(thread_id != main_id);
 
-    // Compare main thread to itself
+    // Compare thread1 to itself
     ASSUME_ITS_TRUE(Thread::equal(thread1, thread1));
+
+    // Create a second valid thread and compare
+    unsigned long thread_id2 = 0;
+    thread2 = Thread(test_thread_funcpp_store_id, &thread_id2);
+    int rc2 = thread2.join();
+    ASSUME_ITS_EQUAL_I32(rc2, 0);
+
     ASSUME_ITS_TRUE(!Thread::equal(thread1, thread2));
 }
 

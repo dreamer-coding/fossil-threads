@@ -120,6 +120,15 @@ FOSSIL_TEST_CASE(c_thread_id_and_equal) {
     ASSUME_ITS_TRUE(thread_id != 0);
     ASSUME_ITS_TRUE(thread_id != main_id);
 
+    // Create a second thread to ensure thread2 is a valid, distinct thread
+    unsigned long thread2_id = 0;
+    rc = fossil_threads_thread_create(&thread2, test_thread_func_store_id, &thread2_id);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+    rc = fossil_threads_thread_join(&thread2, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, 0);
+    ASSUME_ITS_TRUE(thread2_id != 0);
+    ASSUME_ITS_TRUE(thread2_id != thread_id);
+
     // Compare main thread to itself
     ASSUME_ITS_TRUE(fossil_threads_thread_equal(&thread1, &thread1));
     ASSUME_ITS_TRUE(!fossil_threads_thread_equal(&thread1, &thread2));

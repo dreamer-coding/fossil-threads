@@ -61,7 +61,9 @@ FOSSIL_TEST_CASE(cpp_thread_mutex_trylock) {
     bool locked_again = m.try_lock();
     ASSUME_ITS_FALSE(locked_again);
 
-    m.unlock();
+    if (locked) {
+        m.unlock();
+    }
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *

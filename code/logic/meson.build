@@ -10,3 +10,5 @@ fossil_threads_lib = library('fossil_threads',
 fossil_threads_dep = declare_dependency(
     link_with: [fossil_threads_lib],
     include_directories: dir)
+
+meson.override_dependency('fossil-threads', fossil_threads_dep)

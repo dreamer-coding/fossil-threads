@@ -1,7 +1,7 @@
 dir = include_directories('.')
 cc = meson.get_compiler('c')
 
-fossil_threads_lib = library('fossil_thread',
+fossil_threads_lib = library('fossil_threads',
     files('thread.c', 'mutex.c', 'cond.c', 'ghost.c'),
     install: true,
     dependencies: [cc.find_library('m', required: false), dependency('threads')],

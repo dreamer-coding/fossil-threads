@@ -26,7 +26,6 @@
 #define FOSSIL_THREADS_FRAMEWORK_H
 
 #include "thread.h"
-#include "barrier.h"
 #include "mutex.h"
 #include "ghost.h"
 #include "cond.h"

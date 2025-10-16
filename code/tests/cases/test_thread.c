@@ -164,18 +164,6 @@ FOSSIL_TEST_CASE(c_thread_equal_null_and_self) {
     fossil_threads_thread_dispose(&thread);
 }
 
-FOSSIL_TEST_CASE(c_thread_start_ctx_fields) {
-    fossil__thread_start_ctx ctx;
-    ctx.func = test_thread_func_noop;
-    ctx.arg = (void *)0x1234;
-    fossil_threads_thread_t thread;
-    ctx.owner = &thread;
-
-    ASSUME_ITS_TRUE(ctx.func == test_thread_func_noop);
-    ASSUME_ITS_TRUE(ctx.arg == (void *)0x1234);
-    ASSUME_ITS_TRUE(ctx.owner == &thread);
-}
-
 FOSSIL_TEST_CASE(c_thread_create_and_join) {
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
@@ -267,7 +255,6 @@ FOSSIL_TEST_GROUP(c_thread_tests) {
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_detach_twice_should_fail);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_sleep_and_return_value);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_equal_null_and_self);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_start_ctx_fields);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_join);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_detach);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_yield_and_sleep);

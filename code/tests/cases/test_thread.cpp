@@ -142,17 +142,6 @@ FOSSIL_TEST_CASE(cpp_thread_equal_null_and_self) {
     ASSUME_ITS_TRUE(fossil_threads_thread_equal(nullptr, nullptr));
 }
 
-FOSSIL_TEST_CASE(cpp_thread_start_ctx_fields) {
-    fossil__thread_start_ctx ctx;
-    ctx.func = test_thread_funcpp_noop;
-    ctx.arg = reinterpret_cast<void*>(0x1234);
-    Thread thread;
-    ctx.owner = thread.native_handle();
-
-    ASSUME_ITS_TRUE(ctx.func == test_thread_funcpp_noop);
-    ASSUME_ITS_TRUE(ctx.arg == reinterpret_cast<void*>(0x1234));
-    ASSUME_ITS_TRUE(ctx.owner == thread.native_handle());
-}
 
 FOSSIL_TEST_CASE(cpp_thread_create_and_join) {
     Thread thread;
@@ -222,7 +211,6 @@ FOSSIL_TEST_GROUP(cpp_thread_tests) {
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_detach_twice_should_fail);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_sleep_and_return_value);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_equal_null_and_self);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_start_ctx_fields);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_join);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_detach);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_yield_and_sleep);

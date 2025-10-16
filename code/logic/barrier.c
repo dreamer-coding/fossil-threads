@@ -94,6 +94,6 @@ void fossil_threads_barrier_destroy(fossil_threads_barrier_t* barrier) {
     barrier->destroyed = true;
     fossil_threads_cond_broadcast(&barrier->cond);
     fossil_threads_mutex_unlock(&barrier->mutex);
-    fossil_threads_cond_destroy(&barrier->cond);
-    fossil_threads_mutex_destroy(&barrier->mutex);
+    fossil_threads_cond_dispose(&barrier->cond);
+    fossil_threads_mutex_dispose(&barrier->mutex);
 }

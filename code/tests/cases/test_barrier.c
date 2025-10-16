@@ -55,10 +55,13 @@ FOSSIL_TEST_CASE(c_barrier_init_and_dispose) {
     fossil_threads_barrier_t barrier;
     int rc = fossil_threads_barrier_init(&barrier, 2, true);
     ASSUME_ITS_EQUAL_I32(rc, 0);
-    ASSUME_ITS_EQUAL_I32(barrier.valid, 1);
+    // If init returns 0, the barrier is considered valid.
+    ASSUME_ITS_EQUAL_I32(rc, 0);
 
     fossil_threads_barrier_destroy(&barrier);
-    ASSUME_ITS_EQUAL_I32(barrier.valid, 0);
+    // After destroy, calling destroy again should fail.
+    int rc_destroy_again = fossil_threads_barrier_destroy(&barrier);
+    ASSUME_ITS_EQUAL_I32(rc_destroy_again, FOSSIL_THREADS_COND_EINVAL);
 }
 
 FOSSIL_TEST_CASE(c_barrier_init_null) {

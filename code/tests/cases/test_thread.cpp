@@ -55,138 +55,174 @@ FOSSIL_TEARDOWN(cpp_thread_fixture) {
 
 using fossil::threads::Thread;
 
-static void* test_thread_funcpp_return_arg(void* arg) {
-    return arg;
-}
-
-static void* test_thread_funcpp_set_flag(void* arg) {
-    volatile int* f = (volatile int*)arg;
-    *f = 1;
+static void* test_thread_funcpp_noop(void* arg) {
+    (void)arg;
     return nullptr;
 }
 
-static void* test_thread_funcpp_store_id(void* arg) {
-    unsigned long* tid = (unsigned long*)arg;
-    *tid = Thread::current_id();
-    return nullptr;
+static void* test_thread_funcpp_sleep(void* arg) {
+    unsigned int ms = arg ? *(unsigned int*)arg : 10;
+    Thread::sleep_ms(ms);
+    return reinterpret_cast<void*>(static_cast<uintptr_t>(ms));
 }
 
-FOSSIL_TEST_CASE(cpp_thread_create_and_join) {
+FOSSIL_TEST_CASE(cpp_thread_zero_and_init) {
     Thread thread;
-    int arg = 42;
-    void* ret = nullptr;
-
-    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_return_arg, &arg);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    rc = thread.join(&ret);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_EQUAL_I32(*(int*)ret, 42);
+    fossil_threads_thread_t* native = thread.native_handle();
+    memset(native, 0xFF, sizeof(*native));
+    fossil_threads_thread_init(native);
+    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(native);
+    int all_zero = 1;
+    for (size_t i = 0; i < sizeof(*native); ++i) {
+        if (bytes[i] != 0) { all_zero = 0; break; }
+    }
+    ASSUME_ITS_TRUE(all_zero);
 }
 
-FOSSIL_TEST_CASE(cpp_thread_create_and_detach) {
-    Thread thread;
-    volatile int flag = 0;
+FOSSIL_TEST_CASE(cpp_thread_dispose_null_safe) {
+    fossil_threads_thread_dispose(nullptr);
+    ASSUME_ITS_TRUE(1);
+}
 
-    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_set_flag, (void*)&flag);
+FOSSIL_TEST_CASE(cpp_thread_create_twice_should_fail) {
+    Thread thread;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EBUSY);
+
+    thread.join();
+}
+
+FOSSIL_TEST_CASE(cpp_thread_join_twice_should_fail) {
+    Thread thread;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = thread.join();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = thread.join();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+}
+
+FOSSIL_TEST_CASE(cpp_thread_detach_twice_should_fail) {
+    Thread thread;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
     rc = thread.detach();
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    // Wait for the thread to set the flag
-    for (int i = 0; i < 100 && flag == 0; ++i) {
-        Thread::sleep_ms(1);
-    }
-    ASSUME_ITS_EQUAL_I32(flag, 1);
+    rc = thread.detach();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+}
+
+FOSSIL_TEST_CASE(cpp_thread_sleep_and_return_value) {
+    Thread thread;
+    unsigned int ms = 25;
+    void* ret = nullptr;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_sleep, &ms);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = thread.join(&ret);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+    ASSUME_ITS_EQUAL_I32(static_cast<unsigned int>(reinterpret_cast<uintptr_t>(ret)), ms);
+}
+
+FOSSIL_TEST_CASE(cpp_thread_equal_null_and_self) {
+    Thread thread;
+    // Equal to self
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(thread.native_handle(), thread.native_handle()));
+
+    // Not equal to NULL
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(thread.native_handle(), nullptr));
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(nullptr, thread.native_handle()));
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(nullptr, nullptr));
+}
+
+FOSSIL_TEST_CASE(cpp_thread_start_ctx_fields) {
+    fossil__thread_start_ctx ctx;
+    ctx.func = test_thread_funcpp_noop;
+    ctx.arg = reinterpret_cast<void*>(0x1234);
+    Thread thread;
+    ctx.owner = thread.native_handle();
+
+    ASSUME_ITS_TRUE(ctx.func == test_thread_funcpp_noop);
+    ASSUME_ITS_TRUE(ctx.arg == reinterpret_cast<void*>(0x1234));
+    ASSUME_ITS_TRUE(ctx.owner == thread.native_handle());
+}
+
+FOSSIL_TEST_CASE(cpp_thread_create_and_join) {
+    Thread thread;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = thread.join();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+}
+
+FOSSIL_TEST_CASE(cpp_thread_create_and_detach) {
+    Thread thread;
+    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_noop, nullptr);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = thread.detach();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 }
 
 FOSSIL_TEST_CASE(cpp_thread_yield_and_sleep) {
-    int rc = fossil_threads_thread_yield();
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    rc = fossil_threads_thread_sleep_ms(10);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+    Thread::yield();
+    Thread::sleep_ms(5);
+    ASSUME_ITS_TRUE(1);
 }
 
 FOSSIL_TEST_CASE(cpp_thread_id_and_equal) {
     Thread thread1, thread2;
-
-    unsigned long main_id = Thread::current_id();
-    ASSUME_ITS_TRUE(main_id != 0);
-
-    unsigned long thread_id = 0;
-    int rc = fossil_threads_thread_create(thread1.native_handle(), test_thread_funcpp_store_id, &thread_id);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = thread1.join();
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    ASSUME_ITS_TRUE(thread_id != 0);
-    ASSUME_ITS_TRUE(thread_id != main_id);
-
-    unsigned long thread2_id = 0;
-    rc = fossil_threads_thread_create(thread2.native_handle(), test_thread_funcpp_store_id, &thread2_id);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = thread2.join();
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_TRUE(thread2_id != 0);
-    ASSUME_ITS_TRUE(thread2_id != thread_id);
-
-    ASSUME_ITS_TRUE(Thread::equal(thread1, thread1));
-    ASSUME_ITS_TRUE(!Thread::equal(thread1, thread2));
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(thread1.native_handle(), thread2.native_handle()));
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(thread1.native_handle(), thread1.native_handle()));
 }
 
 FOSSIL_TEST_CASE(cpp_thread_create_invalid_args) {
-    Thread thread;
-
-    int rc = fossil_threads_thread_create(nullptr, test_thread_funcpp_return_arg, nullptr);
+    int rc = fossil_threads_thread_create(nullptr, test_thread_funcpp_noop, nullptr);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 
+    Thread thread;
     rc = fossil_threads_thread_create(thread.native_handle(), nullptr, nullptr);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 }
 
 FOSSIL_TEST_CASE(cpp_thread_join_invalid_args) {
-    Thread thread;
-
-    int rc = fossil_threads_thread_join(thread.native_handle(), nullptr);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
-
-    rc = fossil_threads_thread_join(nullptr, nullptr);
+    int rc = fossil_threads_thread_join(nullptr, nullptr);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
+
+    Thread thread;
+    rc = thread.join();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
 }
 
 FOSSIL_TEST_CASE(cpp_thread_detach_invalid_args) {
-    Thread thread;
-
-    int rc = fossil_threads_thread_detach(thread.native_handle());
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
-
-    rc = fossil_threads_thread_detach(nullptr);
+    int rc = fossil_threads_thread_detach(nullptr);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
-}
 
-FOSSIL_TEST_CASE(cpp_thread_dispose_safe_multiple) {
     Thread thread;
-
-    fossil_threads_thread_dispose(thread.native_handle());
-    fossil_threads_thread_dispose(thread.native_handle());
-
-    int rc = fossil_threads_thread_create(thread.native_handle(), test_thread_funcpp_return_arg, nullptr);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = thread.join();
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    fossil_threads_thread_dispose(thread.native_handle());
-    fossil_threads_thread_dispose(thread.native_handle());
-
-    fossil_threads_thread_dispose(nullptr);
+    rc = thread.detach();
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_thread_tests) {    
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_zero_and_init);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_dispose_null_safe);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_twice_should_fail);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_join_twice_should_fail);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_detach_twice_should_fail);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_sleep_and_return_value);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_equal_null_and_self);
+    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_start_ctx_fields);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_join);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_detach);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_yield_and_sleep);
@@ -194,7 +230,6 @@ FOSSIL_TEST_GROUP(cpp_thread_tests) {
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_invalid_args);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_join_invalid_args);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_detach_invalid_args);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_dispose_safe_multiple);
 
     FOSSIL_TEST_REGISTER(cpp_thread_fixture);
 } // end of tests

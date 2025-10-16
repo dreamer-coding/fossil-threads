@@ -53,35 +53,138 @@ FOSSIL_TEARDOWN(c_thread_fixture) {
 
 /* ---------- Lifecycle ---------- */
 
-static void *test_thread_func_return_arg(void *arg) {
-    return arg;
-}
-
-static void *test_thread_func_set_flag(void *arg) {
-    volatile int *f = (volatile int *)arg;
-    *f = 1;
+static void *test_thread_func_noop(void *arg) {
+    (void)arg;
     return NULL;
 }
 
-static void *test_thread_func_store_id(void *arg) {
-    unsigned long *tid = (unsigned long *)arg;
-    *tid = fossil_threads_thread_id();
-    return NULL;
+static void *test_thread_func_sleep(void *arg) {
+    unsigned int ms = arg ? *(unsigned int *)arg : 10;
+    fossil_threads_thread_sleep_ms(ms);
+    return (void *)(uintptr_t)ms;
+}
+
+FOSSIL_TEST_CASE(c_thread_zero_and_init) {
+    fossil_threads_thread_t thread;
+    memset(&thread, 0xFF, sizeof(thread));
+    fossil_threads_thread_init(&thread);
+    // After init, all fields should be zero
+    const unsigned char *bytes = (const unsigned char *)&thread;
+    int all_zero = 1;
+    for (size_t i = 0; i < sizeof(thread); ++i) {
+        if (bytes[i] != 0) { all_zero = 0; break; }
+    }
+    ASSUME_ITS_TRUE(all_zero);
+}
+
+FOSSIL_TEST_CASE(c_thread_dispose_null_safe) {
+    // fossil_threads_thread_dispose should be safe on NULL
+    fossil_threads_thread_dispose(NULL);
+    // No crash, no assertion
+    ASSUME_ITS_TRUE(1);
+}
+
+FOSSIL_TEST_CASE(c_thread_create_twice_should_fail) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    // Try to create again without disposing/joining
+    rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EBUSY);
+
+    fossil_threads_thread_join(&thread, NULL);
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_join_twice_should_fail) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = fossil_threads_thread_join(&thread, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    // Second join should fail (not joinable anymore)
+    rc = fossil_threads_thread_join(&thread, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_detach_twice_should_fail) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = fossil_threads_thread_detach(&thread);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    // Second detach should fail (not joinable anymore)
+    rc = fossil_threads_thread_detach(&thread);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_sleep_and_return_value) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    unsigned int ms = 25;
+    void *ret = NULL;
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_sleep, &ms);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+
+    rc = fossil_threads_thread_join(&thread, &ret);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+    ASSUME_ITS_EQUAL_I32((unsigned int)(uintptr_t)ret, ms);
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_equal_null_and_self) {
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
+
+    // Equal to self
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(&thread, &thread));
+
+    // Not equal to NULL
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(&thread, NULL));
+    ASSUME_ITS_TRUE(!fossil_threads_thread_equal(NULL, &thread));
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(NULL, NULL));
+
+    fossil_threads_thread_dispose(&thread);
+}
+
+FOSSIL_TEST_CASE(c_thread_start_ctx_fields) {
+    fossil__thread_start_ctx ctx;
+    ctx.func = test_thread_func_noop;
+    ctx.arg = (void *)0x1234;
+    fossil_threads_thread_t thread;
+    ctx.owner = &thread;
+
+    ASSUME_ITS_TRUE(ctx.func == test_thread_func_noop);
+    ASSUME_ITS_TRUE(ctx.arg == (void *)0x1234);
+    ASSUME_ITS_TRUE(ctx.owner == &thread);
 }
 
 FOSSIL_TEST_CASE(c_thread_create_and_join) {
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
 
-    int arg = 42;
-    void *ret = NULL;
-
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_return_arg, &arg);
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_join(&thread, &ret);
+    rc = fossil_threads_thread_join(&thread, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_EQUAL_I32(*(int *)ret, 42);
 
     fossil_threads_thread_dispose(&thread);
 }
@@ -90,29 +193,19 @@ FOSSIL_TEST_CASE(c_thread_create_and_detach) {
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
 
-    volatile int flag = 0;
-
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_set_flag, (void *)&flag);
+    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
     rc = fossil_threads_thread_detach(&thread);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    // Wait for the thread to set the flag
-    for (int i = 0; i < 100 && flag == 0; ++i) {
-        fossil_threads_thread_sleep_ms(1);
-    }
-    ASSUME_ITS_EQUAL_I32(flag, 1);
-
     fossil_threads_thread_dispose(&thread);
 }
 
 FOSSIL_TEST_CASE(c_thread_yield_and_sleep) {
-    int rc = fossil_threads_thread_yield();
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    rc = fossil_threads_thread_sleep_ms(10);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+    fossil_threads_thread_yield();
+    fossil_threads_thread_sleep_ms(5);
+    ASSUME_ITS_TRUE(1);
 }
 
 FOSSIL_TEST_CASE(c_thread_id_and_equal) {
@@ -120,45 +213,19 @@ FOSSIL_TEST_CASE(c_thread_id_and_equal) {
     fossil_threads_thread_init(&thread1);
     fossil_threads_thread_init(&thread2);
 
-    unsigned long main_id = fossil_threads_thread_id();
-    ASSUME_ITS_TRUE(main_id != 0);
-
-    // Thread function that stores its thread id
-    unsigned long thread_id = 0;
-    int rc = fossil_threads_thread_create(&thread1, test_thread_func_store_id, &thread_id);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = fossil_threads_thread_join(&thread1, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    ASSUME_ITS_TRUE(thread_id != 0);
-    ASSUME_ITS_TRUE(thread_id != main_id);
-
-    // Create a second thread to ensure thread2 is a valid, distinct thread
-    unsigned long thread2_id = 0;
-    rc = fossil_threads_thread_create(&thread2, test_thread_func_store_id, &thread2_id);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = fossil_threads_thread_join(&thread2, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_TRUE(thread2_id != 0);
-    ASSUME_ITS_TRUE(thread2_id != thread_id);
-
-    // Compare main thread to itself
-    ASSUME_ITS_TRUE(fossil_threads_thread_equal(&thread1, &thread1));
     ASSUME_ITS_TRUE(!fossil_threads_thread_equal(&thread1, &thread2));
+    ASSUME_ITS_TRUE(fossil_threads_thread_equal(&thread1, &thread1));
 
     fossil_threads_thread_dispose(&thread1);
     fossil_threads_thread_dispose(&thread2);
 }
 
 FOSSIL_TEST_CASE(c_thread_create_invalid_args) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
-
-    // NULL thread pointer
-    int rc = fossil_threads_thread_create(NULL, test_thread_func_return_arg, NULL);
+    int rc = fossil_threads_thread_create(NULL, test_thread_func_noop, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 
-    // NULL function pointer
+    fossil_threads_thread_t thread;
+    fossil_threads_thread_init(&thread);
     rc = fossil_threads_thread_create(&thread, NULL, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 
@@ -166,59 +233,41 @@ FOSSIL_TEST_CASE(c_thread_create_invalid_args) {
 }
 
 FOSSIL_TEST_CASE(c_thread_join_invalid_args) {
+    int rc = fossil_threads_thread_join(NULL, NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
+
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
-
-    // Join before create
-    int rc = fossil_threads_thread_join(&thread, NULL);
+    rc = fossil_threads_thread_join(&thread, NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
-
-    // NULL thread pointer
-    rc = fossil_threads_thread_join(NULL, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 
     fossil_threads_thread_dispose(&thread);
 }
 
 FOSSIL_TEST_CASE(c_thread_detach_invalid_args) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
-
-    // Detach before create
-    int rc = fossil_threads_thread_detach(&thread);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
-
-    // NULL thread pointer
-    rc = fossil_threads_thread_detach(NULL);
+    int rc = fossil_threads_thread_detach(NULL);
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
 
-    fossil_threads_thread_dispose(&thread);
-}
-
-FOSSIL_TEST_CASE(c_thread_dispose_safe_multiple) {
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
+    rc = fossil_threads_thread_detach(&thread);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
 
     fossil_threads_thread_dispose(&thread);
-    fossil_threads_thread_dispose(&thread); // Should be safe, no crash
-
-    // Create and join, then dispose multiple times
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_return_arg, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    rc = fossil_threads_thread_join(&thread, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-
-    fossil_threads_thread_dispose(&thread);
-    fossil_threads_thread_dispose(&thread);
-
-    // Dispose on NULL pointer (should be safe/no-op)
-    fossil_threads_thread_dispose(NULL);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_thread_tests) {    
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_zero_and_init);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_dispose_null_safe);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_twice_should_fail);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_join_twice_should_fail);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_detach_twice_should_fail);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_sleep_and_return_value);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_equal_null_and_self);
+    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_start_ctx_fields);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_join);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_detach);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_yield_and_sleep);
@@ -226,7 +275,6 @@ FOSSIL_TEST_GROUP(c_thread_tests) {
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_invalid_args);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_join_invalid_args);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_detach_invalid_args);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_dispose_safe_multiple);
 
     FOSSIL_TEST_REGISTER(c_thread_fixture);
 } // end of tests

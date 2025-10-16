@@ -233,8 +233,9 @@ int fossil_threads_thread_create(
     thread->joinable = 1;
     thread->started = 1;
 
-    /* Best-effort thread id -> cast to integer width; not stable across all libcs */
-    thread->id = (unsigned long)*pth;
+    /* Safely copy pthread_t to thread->id using memcpy to avoid size mismatch */
+    memset(&thread->id, 0, sizeof(thread->id));
+    memcpy(&thread->id, pth, sizeof(*pth));
     return FOSSIL_THREADS_OK;
 }
 

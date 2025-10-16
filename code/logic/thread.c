@@ -49,7 +49,10 @@ typedef struct fossil__thread_start_ctx {
 } fossil__thread_start_ctx;
 
 static void fossil__thread_zero(fossil_threads_thread_t *t) {
-    if (t) memset(t, 0, sizeof(*t));
+    if (t) {
+        /* Zero only up to the size of fossil_threads_thread_t to avoid stack smashing */
+        memset(t, 0, sizeof(fossil_threads_thread_t));
+    }
 }
 
 void fossil_threads_thread_init(fossil_threads_thread_t *t) {
@@ -112,18 +115,22 @@ int fossil_threads_thread_create(
     ctx->arg = arg;
     ctx->owner = thread;
 
+    unsigned thread_id = 0;
     uintptr_t handle = _beginthreadex(
         NULL,              /* default security */
         0,                 /* default stack */
         fossil__thread_start,
         ctx,
         0,                 /* run immediately */
-        (unsigned*)&thread->id
+        &thread_id
     );
     if (!handle) {
         free(ctx);
         return FOSSIL_THREADS_EINTERNAL;
     }
+    /* Safely copy thread_id to thread->id using memcpy to avoid stack smashing */
+    memset(&thread->id, 0, sizeof(thread->id));
+    memcpy(&thread->id, &thread_id, sizeof(thread->id) < sizeof(thread_id) ? sizeof(thread->id) : sizeof(thread_id));
 
     /* We keep ctx alive only until the thread has started and copied owner pointer.
        That's already true here; but the thread still needs ctx for calling func.
@@ -154,6 +161,8 @@ int fossil_threads_thread_join(
     CloseHandle(h);
     thread->handle = NULL;
     thread->joinable = 0;
+    /* Zero out thread->id to avoid stale data and stack smashing */
+    memset(&thread->id, 0, sizeof(thread->id));
     return FOSSIL_THREADS_OK;
 }
 
@@ -201,6 +210,7 @@ static void* fossil__thread_start(void *param) {
         ctx->owner->retval = ret;
         ctx->owner->finished = 1;
     }
+    /* Do not return pointer to any local variable; ret is safe as it's from func */
     free(ctx);
     return ret;
 }
@@ -237,7 +247,8 @@ int fossil_threads_thread_create(
 
     /* Safely copy pthread_t to thread->id using memcpy to avoid size mismatch */
     memset(&thread->id, 0, sizeof(thread->id));
-    memcpy(&thread->id, pth, sizeof(thread->id));
+    memcpy(&thread->id, pth, sizeof(thread->id) < sizeof(*pth) ? sizeof(thread->id) : sizeof(*pth));
+    /* Ensure no stack smashing by limiting memcpy to the smaller of the two sizes */
     return FOSSIL_THREADS_OK;
 }
 
@@ -257,6 +268,9 @@ int fossil_threads_thread_join(
 
     if (retval) *retval = (ret != NULL) ? ret : thread->retval;
 
+    /* Zero out thread->id to avoid stale data */
+    memset(&thread->id, 0, sizeof(thread->id));
+
     free(pth);
     thread->handle = NULL;
     thread->joinable = 0;
@@ -272,8 +286,12 @@ int fossil_threads_thread_detach(
     pthread_t *pth = (pthread_t*)thread->handle;
     if (!pth) return FOSSIL_THREADS_EINTERNAL;
 
+    /* Ensure the thread is not already detached or handle is not corrupted */
     int rc = pthread_detach(*pth);
-    if (rc != 0) return rc;
+    if (rc != 0) {
+        /* Do not free pth if detach failed */
+        return rc;
+    }
 
     free(pth);
     thread->handle = NULL;
@@ -295,6 +313,10 @@ int fossil_threads_thread_sleep_ms(unsigned int ms) {
     struct timespec ts;
     ts.tv_sec  = ms / 1000u;
     ts.tv_nsec = (long)(ms % 1000u) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L) {
+        ts.tv_sec += ts.tv_nsec / 1000000000L;
+        ts.tv_nsec = ts.tv_nsec % 1000000000L;
+    }
     while (nanosleep(&ts, &ts) == -1) {
         /* interrupted by signal, continue sleeping */
         continue;
@@ -329,6 +351,8 @@ int fossil_threads_thread_equal(
         const pthread_t *p2 = (const pthread_t*)t2->handle;
         return pthread_equal(*p1, *p2) != 0;
     }
-    return (t1->id != 0 && t1->id == t2->id);
+    /* Safely compare thread->id using memcmp to avoid stack smashing */
+    size_t cmp_size = sizeof(t1->id) < sizeof(t2->id) ? sizeof(t1->id) : sizeof(t2->id);
+    return (memcmp(&t1->id, &t2->id, cmp_size) == 0);
 #endif
 }

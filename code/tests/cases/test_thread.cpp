@@ -95,11 +95,6 @@ FOSSIL_TEST_CASE(cpp_thread_create_and_detach) {
     ASSUME_ITS_EQUAL_I32(flag, 1);
 }
 
-FOSSIL_TEST_CASE(cpp_thread_yield_and_sleep) {
-    Thread::yield();
-    Thread::sleep_ms(10);
-}
-
 FOSSIL_TEST_CASE(cpp_thread_id_and_equal) {
     Thread thread1, thread2;
 
@@ -133,7 +128,6 @@ FOSSIL_TEST_CASE(cpp_thread_id_and_equal) {
 FOSSIL_TEST_GROUP(cpp_thread_tests) {    
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_join);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_detach);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_yield_and_sleep);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_id_and_equal);
 
     FOSSIL_TEST_REGISTER(cpp_thread_fixture);

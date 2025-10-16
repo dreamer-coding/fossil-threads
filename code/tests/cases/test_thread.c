@@ -107,10 +107,10 @@ FOSSIL_TEST_CASE(c_thread_create_and_detach) {
 
 FOSSIL_TEST_CASE(c_thread_yield_and_sleep) {
     int rc = fossil_threads_thread_yield();
-    ASSUME_ITS_EQUAL_I32(rc, 0);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
     rc = fossil_threads_thread_sleep_ms(10);
-    ASSUME_ITS_EQUAL_I32(rc, 0);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 }
 
 FOSSIL_TEST_CASE(c_thread_id_and_equal) {

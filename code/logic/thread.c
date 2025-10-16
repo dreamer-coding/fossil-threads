@@ -237,7 +237,7 @@ int fossil_threads_thread_create(
 
     /* Safely copy pthread_t to thread->id using memcpy to avoid size mismatch */
     memset(&thread->id, 0, sizeof(thread->id));
-    memcpy(&thread->id, pth, sizeof(*pth));
+    memcpy(&thread->id, pth, sizeof(thread->id));
     return FOSSIL_THREADS_OK;
 }
 

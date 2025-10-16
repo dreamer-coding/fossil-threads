@@ -88,6 +88,8 @@ static unsigned __stdcall fossil__thread_start(void *param) {
         ctx->owner->retval = ret;
         ctx->owner->finished = 1;
     }
+    /* Free the thread context after use to avoid memory leak */
+    free(ctx);
     /* _endthreadex expects an unsigned; stash pointer->unsigned best-effort (ignored anyway) */
     unsigned code = (unsigned)(uintptr_t)ret;
     _endthreadex(code);

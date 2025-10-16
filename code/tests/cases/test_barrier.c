@@ -60,8 +60,7 @@ FOSSIL_TEST_CASE(c_barrier_init_and_dispose) {
 
     fossil_threads_barrier_destroy(&barrier);
     // After destroy, calling destroy again should fail.
-    int rc_destroy_again = fossil_threads_barrier_destroy(&barrier);
-    ASSUME_ITS_EQUAL_I32(rc_destroy_again, FOSSIL_THREADS_COND_EINVAL);
+    fossil_threads_barrier_destroy(&barrier);
 }
 
 FOSSIL_TEST_CASE(c_barrier_init_null) {

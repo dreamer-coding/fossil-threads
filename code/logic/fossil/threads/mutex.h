@@ -30,6 +30,9 @@ extern "C"
 {
 #endif
 
+#include <stddef.h>
+#include <stdbool.h>
+
 #if defined(_WIN32) && defined(FOSSIL_THREADS_BUILD_DLL)
 #  define FOSSIL_THREADS_API __declspec(dllexport)
 #elif defined(_WIN32) && defined(FOSSIL_THREADS_USE_DLL)

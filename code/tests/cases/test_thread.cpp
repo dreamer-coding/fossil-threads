@@ -67,8 +67,8 @@ static void* test_thread_funcpp_sleep(void* arg) {
 }
 
 FOSSIL_TEST_CASE(cpp_thread_zero_and_init) {
-    Thread thread;
-    fossil_threads_thread_t* native = thread.native_handle();
+    // Allocate memory for native thread handle on the heap to avoid stack smashing
+    fossil_threads_thread_t* native = (fossil_threads_thread_t*)malloc(sizeof(fossil_threads_thread_t));
     memset(native, 0xFF, sizeof(*native));
     fossil_threads_thread_init(native);
     const unsigned char* bytes = reinterpret_cast<const unsigned char*>(native);
@@ -77,6 +77,7 @@ FOSSIL_TEST_CASE(cpp_thread_zero_and_init) {
         if (bytes[i] != 0) { all_zero = 0; break; }
     }
     ASSUME_ITS_TRUE(all_zero);
+    free(native);
 }
 
 FOSSIL_TEST_CASE(cpp_thread_dispose_null_safe) {

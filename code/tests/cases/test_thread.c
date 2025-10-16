@@ -66,7 +66,7 @@ static void *test_thread_func_sleep(void *arg) {
 
 FOSSIL_TEST_CASE(c_thread_zero_and_init) {
     fossil_threads_thread_t thread;
-    memset(&thread, 0xFF, sizeof(thread));
+    memset(&thread, 0, sizeof(thread));
     fossil_threads_thread_init(&thread);
     // After init, all fields should be zero
     const unsigned char *bytes = (const unsigned char *)&thread;

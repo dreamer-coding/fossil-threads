@@ -599,7 +599,7 @@ int fossil_threads_pool_submit(
     if (pool->stop) {
         pthread_mutex_unlock(&pool->tasks_mutex);
         free(task);
-        return FOSSIL_THREADS_ECANCELED;
+        return FOSSIL_THREADS_ECANCELLED;
     }
     if (pool->tasks_tail)
         pool->tasks_tail->next = task;

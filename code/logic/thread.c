@@ -311,8 +311,35 @@ int fossil_threads_thread_get_affinity(
 int fossil_threads_thread_cancel(
     fossil_threads_thread_t *thread
 ) {
-    /* Cooperative cancellation not implemented */
-    return FOSSIL_THREADS_EPERM;
+    if (!thread || !thread->handle) {
+        return FOSSIL_THREADS_EINVAL; /* Invalid thread pointer */
+    }
+
+#if defined(_WIN32)
+    /* Windows has no safe cancellation API like pthread_cancel. 
+       We can attempt TerminateThread only if truly necessary, but 
+       it is unsafe (leaks, locks left held, etc.). So we mark as EPERM. */
+    (void)thread;
+    return FOSSIL_THREADS_EPERM; /* No cooperative cancel */
+
+#else
+    /* POSIX pthreads */
+    pthread_t *pth = (pthread_t *)thread->handle;
+
+    /* Only attempt cancel if joinable and started */
+    if (!thread->started || thread->finished) {
+        return FOSSIL_THREADS_EINVAL;
+    }
+
+    int rc = pthread_cancel(*pth);
+    if (rc == 0) {
+        return FOSSIL_THREADS_OK;
+    } else if (rc == ESRCH) {
+        return FOSSIL_THREADS_ENOENT; /* Thread not found */
+    } else {
+        return FOSSIL_THREADS_EPERM; /* Probably non-cancelable or invalid */
+    }
+#endif
 }
 
 int fossil_threads_thread_is_running(

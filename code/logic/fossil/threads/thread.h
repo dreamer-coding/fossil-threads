@@ -241,14 +241,58 @@ FOSSIL_THREADS_API void* fossil_threads_thread_get_retval(
     const fossil_threads_thread_t *thread
 );
 
-/* Error codes (subset mirrors common errno/GetLastError patterns) */
+/* ============================================================================
+** Fossil Threads Error Codes
+** Mirrors common errno / GetLastError() semantics,
+** with Fossil-specific extensions for cross-platform consistency.
+** ==========================================================================*/
 enum {
-    FOSSIL_THREADS_OK            = 0,
-    FOSSIL_THREADS_EINVAL        = 22,   /* invalid argument */
+    /* ---------------------------------------------------------------
+    ** Generic / success
+    ** --------------------------------------------------------------- */
+    FOSSIL_THREADS_OK            = 0,    /* success / no error */
+
+    /* ---------------------------------------------------------------
+    ** Standard error mappings
+    ** --------------------------------------------------------------- */
+    FOSSIL_THREADS_EPERM         = 1,    /* operation not permitted / wrong usage */
+    FOSSIL_THREADS_ENOMEM        = 12,   /* memory allocation failed */
     FOSSIL_THREADS_EBUSY         = 16,   /* resource busy / wrong state */
-    FOSSIL_THREADS_ENOMEM        = 12,   /* allocation failed */
-    FOSSIL_THREADS_EPERM         = 1,    /* not permitted / wrong usage */
-    FOSSIL_THREADS_EINTERNAL     = 199   /* generic internal failure */
+    FOSSIL_THREADS_EINVAL        = 22,   /* invalid argument */
+    FOSSIL_THREADS_ENOSYS        = 38,   /* function not implemented */
+    FOSSIL_THREADS_ETIMEDOUT     = 110,  /* operation timed out */
+    FOSSIL_THREADS_EDEADLK       = 35,   /* deadlock detected */
+    FOSSIL_THREADS_EAGAIN        = 11,   /* resource temporarily unavailable */
+    FOSSIL_THREADS_EINTR         = 4,    /* interrupted system call */
+    FOSSIL_THREADS_EIO           = 5,    /* I/O or handle-related error */
+
+    /* ---------------------------------------------------------------
+    ** Thread lifecycle errors
+    ** --------------------------------------------------------------- */
+    FOSSIL_THREADS_ENOTSTARTED   = 201,  /* thread not started yet */
+    FOSSIL_THREADS_EFINISHED     = 202,  /* thread already finished */
+    FOSSIL_THREADS_EJOINED       = 203,  /* thread already joined */
+    FOSSIL_THREADS_EDETACHED     = 204,  /* thread is detached (not joinable) */
+    FOSSIL_THREADS_ECANCELLED    = 205,  /* thread was cancelled (cooperative) */
+    FOSSIL_THREADS_ESTATE        = 206,  /* invalid thread state transition */
+
+    /* ---------------------------------------------------------------
+    ** Synchronization and signaling
+    ** --------------------------------------------------------------- */
+    FOSSIL_THREADS_ELOCK         = 210,  /* mutex lock failed */
+    FOSSIL_THREADS_EUNLOCK       = 211,  /* mutex unlock failed */
+    FOSSIL_THREADS_ECONDWAIT     = 212,  /* condition wait failed */
+    FOSSIL_THREADS_ECONDSTATE    = 213,  /* invalid condition state */
+    FOSSIL_THREADS_EBARRIER      = 214,  /* barrier wait/init failed */
+    FOSSIL_THREADS_ETHREADID     = 215,  /* could not retrieve thread id */
+
+    /* ---------------------------------------------------------------
+    ** OS / internal errors
+    ** --------------------------------------------------------------- */
+    FOSSIL_THREADS_EINTERNAL     = 250,  /* generic internal failure */
+    FOSSIL_THREADS_EOSFAIL       = 251,  /* underlying OS call failed */
+    FOSSIL_THREADS_EUNSUPPORTED  = 252,  /* unsupported operation on platform */
+    FOSSIL_THREADS_ESTATECORRUPT = 253   /* corrupted thread object or memory */
 };
 
 /* ---------- Thread Pool API ---------- */

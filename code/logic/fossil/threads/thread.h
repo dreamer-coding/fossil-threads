@@ -25,7 +25,11 @@
 #ifndef FOSSIL_THREADS_THREAD_H
 #define FOSSIL_THREADS_THREAD_H
 
-#include <stddef.h>
+#include <errno.h>      /* for errno, EINTR, ESRCH */
+#include <signal.h>     /* for pthread_kill */
+#include <time.h>       /* for nanosleep */
+#include <stdlib.h>     /* for malloc/free */
+#include <string.h>     /* for memset, etc. */
 
 #ifdef __cplusplus
 extern "C"

@@ -48,16 +48,55 @@ extern "C"
 /* User thread entry point: return value is optionally retrieved by join(). */
 typedef void* (*fossil_threads_thread_func)(void *arg);
 
-/* Opaque-ish handle; fields are public for POD-ness but do not touch them. */
+/* -------------------------------------------------------------------------
+** Fossil Threads: Thread Handle
+** 
+** Opaque-ish POD structure. Fields are public for binary compatibility
+** and tooling introspection, but should not be modified directly by users.
+**
+** Portable across POSIX and Windows; members that differ by platform
+** are normalized to simple types (void*, unsigned long, int).
+** ------------------------------------------------------------------------- */
 typedef struct fossil_threads_thread {
-    void *handle;          /* OS handle: HANDLE on Win, pthread_t* heap ptr on POSIX */
-    unsigned long id;      /* OS thread id */
-    void *retval;          /* join() result (set by wrapper) */
-    int   joinable;        /* 1 if joinable, 0 if detached */
-    int   started;         /* 1 after successful create */
-    int   finished;        /* 1 after thread function returns */
-    int   priority;        /* thread priority (extended) */
-    int   affinity;        /* CPU affinity mask (extended) */
+    /* --------------------------------------------------------------
+    ** Core identity and handle
+    ** -------------------------------------------------------------- */
+    void *handle;              /* OS handle: HANDLE (Win) or pthread_t* (POSIX) */
+    unsigned long id;          /* OS thread ID */
+    void *retval;              /* Result from thread join() (set by wrapper) */
+
+    /* --------------------------------------------------------------
+    ** Lifecycle and joinability
+    ** -------------------------------------------------------------- */
+    int   joinable;            /* 1 if joinable, 0 if detached */
+    int   started;             /* 1 once successfully created */
+    int   finished;            /* 1 after thread returns normally */
+    int   cancelled;           /* 1 if cooperative cancel acknowledged */
+    int   cancel_requested;    /* 1 if cancel requested (set by cancel()) */
+
+    /* --------------------------------------------------------------
+    ** Scheduling and affinity
+    ** -------------------------------------------------------------- */
+    int   priority;            /* thread priority (FOSSIL_THREADS_PRIORITY_*) */
+    int   affinity;            /* CPU affinity mask or index (if supported) */
+    int   policy;              /* scheduling policy hint (extended use) */
+
+    /* --------------------------------------------------------------
+    ** Timing and diagnostics
+    ** -------------------------------------------------------------- */
+    unsigned long long start_time_ns; /* timestamp when thread started */
+    unsigned long long end_time_ns;   /* timestamp when thread finished */
+    unsigned long exec_time_ns;       /* derived or measured execution time */
+    int   exit_code;                  /* numeric return or mapped OS exit code */
+    int   error_code;                 /* last Fossil thread error code */
+
+    /* --------------------------------------------------------------
+    ** Reserved / extension
+    ** -------------------------------------------------------------- */
+    void *userdata;            /* optional pointer for thread-local context */
+    void *internal;            /* internal library-specific pointer */
+    unsigned int version;      /* ABI version for structure compatibility */
+    unsigned int reserved[2];  /* reserved for future growth */
 } fossil_threads_thread_t;
 
 /* ---------- Lifecycle ---------- */

@@ -43,6 +43,8 @@ extern "C"
 
 /* ---------- Types ---------- */
 
+/* ---------- Thread API ---------- */
+
 /* User thread entry point: return value is optionally retrieved by join(). */
 typedef void* (*fossil_threads_thread_func)(void *arg);
 
@@ -54,6 +56,8 @@ typedef struct fossil_threads_thread {
     int   joinable;        /* 1 if joinable, 0 if detached */
     int   started;         /* 1 after successful create */
     int   finished;        /* 1 after thread function returns */
+    int   priority;        /* thread priority (extended) */
+    int   affinity;        /* CPU affinity mask (extended) */
 } fossil_threads_thread_t;
 
 /* ---------- Lifecycle ---------- */
@@ -62,16 +66,15 @@ typedef struct fossil_threads_thread {
 // Function prototypes
 // *****************************************************************************
 
-/* 
- * Create a joinable thread that runs 'func(arg)' in a new OS thread.
- * 
- * @param thread Pointer to a fossil_threads_thread_t structure to initialize.
- * @param func   Function pointer to the thread entry point (must match fossil_threads_thread_func signature).
- * @param arg    Argument to pass to the thread function (may be NULL).
- * @return       0 on success, or error code on failure (see error codes below).
- * 
- * On success, 'thread' is initialized and represents a joinable thread.
- * The thread will execute 'func(arg)' and may be joined or detached.
+/**
+ * Create a new thread.
+ * Initializes the thread structure and starts execution of the specified function.
+ * The thread is created in a joinable state by default.
+ *
+ * @param thread Pointer to the thread structure to initialize.
+ * @param func   Function pointer to the thread entry point.
+ * @param arg    Argument to pass to the thread function.
+ * @return       0 on success, error code otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_create(
     fossil_threads_thread_t *thread, 
@@ -79,53 +82,49 @@ FOSSIL_THREADS_API int fossil_threads_thread_create(
     void *arg
 );
 
-/* 
- * Join a joinable thread, blocking until it finishes execution.
- * 
- * @param thread Pointer to a fossil_threads_thread_t representing a joinable thread.
- * @param retval If not NULL, receives the return value from the thread function.
- * @return       0 on success, or error code on failure.
- * 
- * After a successful join, the thread handle is cleaned up and cannot be joined or detached again.
- * If the thread was already detached or not joinable, returns an error.
+/**
+ * Join a thread.
+ * Waits for the specified thread to finish execution. Optionally retrieves the
+ * return value from the thread function.
+ *
+ * @param thread Pointer to the thread structure.
+ * @param retval Pointer to receive the thread's return value (may be NULL).
+ * @return       0 on success, error code otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_join(
     fossil_threads_thread_t *thread, 
     void **retval
 );
 
-/* 
- * Detach a thread, allowing its resources to be released automatically when it finishes.
- * 
- * @param thread Pointer to a fossil_threads_thread_t representing a joinable thread.
- * @return       0 on success, or error code on failure.
- * 
+/**
+ * Detach a thread.
+ * Marks the thread as detached, releasing resources when it finishes.
  * After detaching, join() is invalid for this thread.
- * Detaching a thread that is already detached or not joinable returns an error.
+ *
+ * @param thread Pointer to the thread structure.
+ * @return       0 on success, error code otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_detach(
     fossil_threads_thread_t *thread
 );
 
-/* 
- * Initialize a fossil_threads_thread_t structure to a safe, zeroed state.
- * 
+/**
+ * Initialize a thread structure.
+ * Sets all fields of the thread structure to a safe, zeroed state.
+ * Does not start a thread.
+ *
  * @param thread Pointer to the thread structure to initialize.
- * 
- * This is a no-op if the structure is already zeroed.
- * It is safe to call before create(), or to reinitialize a disposed structure.
  */
 FOSSIL_THREADS_API void fossil_threads_thread_init(
     fossil_threads_thread_t *thread
 );
 
-/* 
- * Dispose of a thread handle, releasing any resources if necessary.
- * 
+/**
+ * Dispose of a thread structure.
+ * Cleans up any resources associated with the thread structure.
+ * Does not join or detach running threads.
+ *
  * @param thread Pointer to the thread structure to dispose.
- * 
- * Safe to call on zeroed, unused, or already-joined/detached structures.
- * Does not affect running threads; only cleans up handles.
  */
 FOSSIL_THREADS_API void fossil_threads_thread_dispose(
     fossil_threads_thread_t *thread
@@ -133,49 +132,113 @@ FOSSIL_THREADS_API void fossil_threads_thread_dispose(
 
 /* ---------- Management / utilities ---------- */
 
-/* 
- * Yield the processor, hinting the OS scheduler to switch to another thread.
- * 
- * @return 0 on success, or error code on failure.
- * 
- * This is a cooperative scheduling hint; actual behavior is OS-dependent.
+/**
+ * Yield the processor to another thread.
+ * Hints the OS scheduler to switch to another thread.
+ *
+ * @return 0 on success, error code otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_yield(void);
 
-/* 
- * Sleep the calling thread for the specified number of milliseconds.
- * 
+/**
+ * Sleep for a specified duration (in milliseconds).
+ * Pauses the current thread for the given number of milliseconds.
+ *
  * @param ms Number of milliseconds to sleep.
- * @return   0 on success, or error code on failure.
- * 
- * The thread is suspended for at least 'ms' milliseconds.
- * Actual sleep duration may be longer due to OS scheduling.
+ * @return   0 on success, error code otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_sleep_ms(
     unsigned int ms
 );
 
-/* 
- * Get the current thread's OS-specific thread identifier.
- * 
- * @return The thread ID as an unsigned long.
- * 
- * This value is suitable for comparison and logging, but may not be unique across processes.
+/**
+ * Get the current thread ID.
+ * Retrieves the OS-specific identifier for the calling thread.
+ *
+ * @return The current thread ID as an unsigned long.
  */
 FOSSIL_THREADS_API unsigned long fossil_threads_thread_id(void);
 
-/* 
- * Compare two thread objects to determine if they refer to the same underlying thread.
- * 
+/**
+ * Compare two thread objects for equality.
+ * Checks if both thread structures refer to the same underlying thread.
+ *
  * @param t1 Pointer to the first thread structure.
  * @param t2 Pointer to the second thread structure.
- * @return   Nonzero if both refer to the same thread, 0 otherwise.
- * 
- * Useful for checking thread identity in portable code.
+ * @return   1 if equal, 0 otherwise.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_equal(
     const fossil_threads_thread_t *t1, 
     const fossil_threads_thread_t *t2
+);
+
+/* ---------- Extended API ---------- */
+
+/*
+ * Set thread priority.
+ * @param thread Pointer to the thread structure.
+ * @param priority Priority value (OS-dependent, e.g., 0=normal, higher=more priority).
+ * @return 0 on success, error code otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_set_priority(
+    fossil_threads_thread_t *thread,
+    int priority
+);
+
+/*
+ * Get thread priority.
+ * @param thread Pointer to the thread structure.
+ * @return Priority value, or negative error code.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_get_priority(
+    const fossil_threads_thread_t *thread
+);
+
+/*
+ * Set thread CPU affinity.
+ * @param thread Pointer to the thread structure.
+ * @param affinity CPU affinity mask (OS-dependent).
+ * @return 0 on success, error code otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_set_affinity(
+    fossil_threads_thread_t *thread,
+    int affinity
+);
+
+/*
+ * Get thread CPU affinity.
+ * @param thread Pointer to the thread structure.
+ * @return Affinity mask, or negative error code.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_get_affinity(
+    const fossil_threads_thread_t *thread
+);
+
+/*
+ * Request thread cancellation (cooperative).
+ * @param thread Pointer to the thread structure.
+ * @return 0 on success, error code otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_cancel(
+    fossil_threads_thread_t *thread
+);
+
+/*
+ * Check if thread is running.
+ * @param thread Pointer to the thread structure.
+ * @return 1 if running, 0 otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_thread_is_running(
+    const fossil_threads_thread_t *thread
+);
+
+/*
+ * Get thread return value (if finished).
+ * @param thread Pointer to the thread structure.
+ * @return Return value pointer, or NULL if not finished.
+ */
+FOSSIL_THREADS_API void* fossil_threads_thread_get_retval(
+    const fossil_threads_thread_t *thread
 );
 
 /* Error codes (subset mirrors common errno/GetLastError patterns) */
@@ -188,6 +251,59 @@ enum {
     FOSSIL_THREADS_EINTERNAL     = 199   /* generic internal failure */
 };
 
+/* ---------- Thread Pool API ---------- */
+
+/* Forward declaration for thread pool handle */
+typedef struct fossil_threads_pool fossil_threads_pool_t;
+
+/*
+ * Create a thread pool.
+ * @param num_threads Number of worker threads.
+ * @return Pointer to thread pool, or NULL on failure.
+ */
+FOSSIL_THREADS_API fossil_threads_pool_t* fossil_threads_pool_create(
+    size_t num_threads
+);
+
+/*
+ * Destroy a thread pool.
+ * @param pool Pointer to thread pool.
+ */
+FOSSIL_THREADS_API void fossil_threads_pool_destroy(
+    fossil_threads_pool_t *pool
+);
+
+/*
+ * Submit a task to the thread pool.
+ * @param pool Pointer to thread pool.
+ * @param func Task function (same signature as thread entry).
+ * @param arg Argument to pass to the task function.
+ * @return 0 on success, error code otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_pool_submit(
+    fossil_threads_pool_t *pool,
+    fossil_threads_thread_func func,
+    void *arg
+);
+
+/*
+ * Wait for all tasks in the pool to finish.
+ * @param pool Pointer to thread pool.
+ * @return 0 on success, error code otherwise.
+ */
+FOSSIL_THREADS_API int fossil_threads_pool_wait(
+    fossil_threads_pool_t *pool
+);
+
+/*
+ * Get number of threads in the pool.
+ * @param pool Pointer to thread pool.
+ * @return Number of threads.
+ */
+FOSSIL_THREADS_API size_t fossil_threads_pool_size(
+    const fossil_threads_pool_t *pool
+);
+
 #ifdef __cplusplus
 }
 #include <stdexcept>
@@ -195,184 +311,243 @@ enum {
 
 namespace fossil {
 
-namespace threads {
-
-    class Thread {
-    public:
-        using Func = void*(*)(void*);
+    namespace threads {
 
         /**
-         * Default constructor.
-         * Initializes the native thread structure to a safe, zeroed state.
-         * Does not start a thread.
-         */
-        Thread() {
-            fossil_threads_thread_init(&native_);
-        }
-
-        /**
-         * Parameterized constructor.
-         * Initializes the native thread structure and starts a new thread
-         * running the given function with the provided argument.
-         * Throws std::runtime_error if thread creation fails.
+         * @brief C++ wrapper for fossil_threads_thread_t.
          *
-         * @param func  The thread entry point function.
-         * @param arg   Argument to pass to the thread function (default: nullptr).
+         * Provides a RAII-style interface for thread management using the Fossil Logic thread API.
+         * Disallows copy semantics; supports move semantics.
          */
-        explicit Thread(Func func, void* arg = nullptr) {
-            fossil_threads_thread_init(&native_);
-            if (fossil_threads_thread_create(&native_, func, arg) != 0) {
-            throw std::runtime_error("Failed to create thread");
+        class Thread {
+        public:
+            /**
+             * @brief Thread entry point function type.
+             * Signature matches fossil_threads_thread_func.
+             */
+            using Func = void*(*)(void*);
+
+            /**
+             * @brief Default constructor.
+             * Initializes the thread structure to a safe state; does not start a thread.
+             */
+            Thread() {
+                fossil_threads_thread_init(&native_);
             }
-        }
 
-        /**
-         * Destructor.
-         * Cleans up any resources associated with the thread.
-         * If the thread is still running, this does not join or detach it.
-         */
-        ~Thread() {
-            fossil_threads_thread_dispose(&native_);
-        }
-
-        // Disable copy construction and copy assignment to prevent
-        // accidental copying of thread handles.
-        Thread(const Thread&) = delete;
-        Thread& operator=(const Thread&) = delete;
-
-        /**
-         * Move constructor.
-         * Transfers ownership of the thread handle from another Thread object.
-         * The source object is reset to a safe, zeroed state.
-         *
-         * @param other  The Thread object to move from.
-         */
-        Thread(Thread&& other) noexcept {
-            native_ = other.native_;
-            other.native_ = {};
-        }
-
-        /**
-         * Move assignment operator.
-         * Disposes of any existing thread handle, then transfers ownership
-         * from another Thread object. The source object is reset.
-         *
-         * @param other  The Thread object to move from.
-         * @return       Reference to this object.
-         */
-        Thread& operator=(Thread&& other) noexcept {
-            if (this != &other) {
-            fossil_threads_thread_dispose(&native_);
-            native_ = other.native_;
-            other.native_ = {};
+            /**
+             * @brief Construct and start a thread.
+             * Initializes and creates a new thread executing the given function.
+             * @param func Function pointer to thread entry.
+             * @param arg Argument to pass to thread function (default nullptr).
+             * @throws std::runtime_error on failure.
+             */
+            explicit Thread(Func func, void* arg = nullptr) {
+                fossil_threads_thread_init(&native_);
+                if (fossil_threads_thread_create(&native_, func, arg) != 0) {
+                    throw std::runtime_error("Failed to create thread");
+                }
             }
-            return *this;
-        }
 
-        /**
-         * Join the thread.
-         * Waits for the thread to finish execution. Optionally retrieves the
-         * return value from the thread function.
-         *
-         * @param retval  Pointer to receive the thread's return value (default: nullptr).
-         * @return        0 on success, error code otherwise.
-         */
-        int join(void** retval = nullptr) {
-            return fossil_threads_thread_join(&native_, retval);
-        }
+            /**
+             * @brief Destructor.
+             * Disposes of the thread structure; does not join or detach running threads.
+             */
+            ~Thread() {
+                fossil_threads_thread_dispose(&native_);
+            }
 
-        /**
-         * Detach the thread.
-         * Releases resources when the thread finishes. After detaching,
-         * join() is invalid.
-         *
-         * @return  0 on success, error code otherwise.
-         */
-        int detach() {
-            return fossil_threads_thread_detach(&native_);
-        }
+            /**
+             * @brief Deleted copy constructor.
+             * Threads cannot be copied.
+             */
+            Thread(const Thread&) = delete;
 
-        /**
-         * Get the thread ID.
-         * Returns the OS-specific thread identifier for this thread.
-         *
-         * @return  The thread ID as an unsigned long.
-         */
-        unsigned long id() const {
-            return native_.id;
-        }
+            /**
+             * @brief Deleted copy assignment operator.
+             * Threads cannot be copied.
+             */
+            Thread& operator=(const Thread&) = delete;
 
-        /**
-         * Check if the thread is joinable.
-         * Returns true if the thread can be joined, false if detached or not started.
-         *
-         * @return  True if joinable, false otherwise.
-         */
-        bool joinable() const {
-            return native_.joinable != 0;
-        }
+            /**
+             * @brief Move constructor.
+             * Transfers thread ownership; source is reset to default state.
+             * @param other Thread to move from.
+             */
+            Thread(Thread&& other) noexcept {
+                native_ = other.native_;
+                other.native_ = {};
+            }
 
-        /**
-         * Yield the processor to another thread.
-         * Static utility to hint the OS scheduler to switch threads.
-         */
-        static void yield() {
-            fossil_threads_thread_yield();
-        }
+            /**
+             * @brief Move assignment operator.
+             * Disposes current thread and transfers ownership from other.
+             * @param other Thread to move from.
+             * @return Reference to this thread.
+             */
+            Thread& operator=(Thread&& other) noexcept {
+                if (this != &other) {
+                    fossil_threads_thread_dispose(&native_);
+                    native_ = other.native_;
+                    other.native_ = {};
+                }
+                return *this;
+            }
 
-        /**
-         * Sleep for a specified duration (in milliseconds).
-         * Static utility to pause the current thread.
-         *
-         * @param ms  Number of milliseconds to sleep.
-         */
-        static void sleep_ms(unsigned int ms) {
-            fossil_threads_thread_sleep_ms(ms);
-        }
+            /**
+             * @brief Join the thread.
+             * Waits for thread completion and optionally retrieves return value.
+             * @param retval Pointer to receive thread return value (may be nullptr).
+             * @return 0 on success, error code otherwise.
+             */
+            int join(void** retval = nullptr) {
+                return fossil_threads_thread_join(&native_, retval);
+            }
 
-        /**
-         * Get the current thread ID.
-         * Static utility to retrieve the calling thread's OS-specific ID.
-         *
-         * @return  The current thread ID as an unsigned long.
-         */
-        static unsigned long current_id() {
-            return fossil_threads_thread_id();
-        }
+            /**
+             * @brief Detach the thread.
+             * Marks thread as detached; resources released when finished.
+             * @return 0 on success, error code otherwise.
+             */
+            int detach() {
+                return fossil_threads_thread_detach(&native_);
+            }
 
-        /**
-         * Compare if two thread objects refer to the same underlying thread.
-         * Static utility to check thread identity.
-         *
-         * @param t1  First thread object.
-         * @param t2  Second thread object.
-         * @return    True if both refer to the same thread, false otherwise.
-         */
-        static bool equal(const Thread& t1, const Thread& t2) {
-            return fossil_threads_thread_equal(&t1.native_, &t2.native_) != 0;
-        }
+            /**
+             * @brief Get thread ID.
+             * Returns OS-specific thread identifier.
+             * @return Thread ID.
+             */
+            unsigned long id() const {
+                return native_.id;
+            }
 
-        /**
-         * Get the native thread handle.
-         * Returns a pointer to the underlying C thread structure.
-         *
-         * @return  Pointer to fossil_threads_thread_t.
-         */
-        fossil_threads_thread_t* native_handle() { return &native_; }
+            /**
+             * @brief Check if thread is joinable.
+             * @return true if joinable, false otherwise.
+             */
+            bool joinable() const {
+                return native_.joinable != 0;
+            }
 
-        /**
-         * Get the native thread handle (const version).
-         * Returns a const pointer to the underlying C thread structure.
-         *
-         * @return  Const pointer to fossil_threads_thread_t.
-         */
-        const fossil_threads_thread_t* native_handle() const { return &native_; }
+            /**
+             * @brief Yield processor to another thread.
+             * Static utility function.
+             */
+            static void yield() {
+                fossil_threads_thread_yield();
+            }
 
-    private:
-        fossil_threads_thread_t native_{};
-    };
+            /**
+             * @brief Sleep for specified milliseconds.
+             * Static utility function.
+             * @param ms Number of milliseconds to sleep.
+             */
+            static void sleep_ms(unsigned int ms) {
+                fossil_threads_thread_sleep_ms(ms);
+            }
 
-} // namespace threads
+            /**
+             * @brief Get current thread ID.
+             * Static utility function.
+             * @return Current thread ID.
+             */
+            static unsigned long current_id() {
+                return fossil_threads_thread_id();
+            }
+
+            /**
+             * @brief Compare two threads for equality.
+             * Static utility function.
+             * @param t1 First thread.
+             * @param t2 Second thread.
+             * @return true if equal, false otherwise.
+             */
+            static bool equal(const Thread& t1, const Thread& t2) {
+                return fossil_threads_thread_equal(&t1.native_, &t2.native_) != 0;
+            }
+
+            /**
+             * @brief Get native thread handle (mutable).
+             * @return Pointer to native thread structure.
+             */
+            fossil_threads_thread_t* native_handle() { return &native_; }
+
+            /**
+             * @brief Get native thread handle (const).
+             * @return Pointer to native thread structure.
+             */
+            const fossil_threads_thread_t* native_handle() const { return &native_; }
+
+            // Extended API
+
+            /**
+             * @brief Set thread priority.
+             * @param priority Priority value (OS-dependent).
+             * @return 0 on success, error code otherwise.
+             */
+            int set_priority(int priority) {
+                return fossil_threads_thread_set_priority(&native_, priority);
+            }
+
+            /**
+             * @brief Get thread priority.
+             * @return Priority value, or negative error code.
+             */
+            int get_priority() const {
+                return fossil_threads_thread_get_priority(&native_);
+            }
+
+            /**
+             * @brief Set thread CPU affinity.
+             * @param affinity CPU affinity mask (OS-dependent).
+             * @return 0 on success, error code otherwise.
+             */
+            int set_affinity(int affinity) {
+                return fossil_threads_thread_set_affinity(&native_, affinity);
+            }
+
+            /**
+             * @brief Get thread CPU affinity.
+             * @return Affinity mask, or negative error code.
+             */
+            int get_affinity() const {
+                return fossil_threads_thread_get_affinity(&native_);
+            }
+
+            /**
+             * @brief Request thread cancellation (cooperative).
+             * @return 0 on success, error code otherwise.
+             */
+            int cancel() {
+                return fossil_threads_thread_cancel(&native_);
+            }
+
+            /**
+             * @brief Check if thread is running.
+             * @return true if running, false otherwise.
+             */
+            bool is_running() const {
+                return fossil_threads_thread_is_running(&native_) != 0;
+            }
+
+            /**
+             * @brief Get thread return value (if finished).
+             * @return Return value pointer, or nullptr if not finished.
+             */
+            void* get_retval() const {
+                return fossil_threads_thread_get_retval(&native_);
+            }
+
+        private:
+            /**
+             * @brief Native thread structure.
+             * Holds OS-specific thread handle and state.
+             */
+            fossil_threads_thread_t native_{};
+        };
+
+    } // namespace threads
 
 } // namespace fossil
 

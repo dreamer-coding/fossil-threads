@@ -308,38 +308,59 @@ int fossil_threads_thread_get_affinity(
     return thread->affinity;
 }
 
-int fossil_threads_thread_cancel(
-    fossil_threads_thread_t *thread
-) {
-    if (!thread || !thread->handle) {
-        return FOSSIL_THREADS_EINVAL; /* Invalid thread pointer */
-    }
+int fossil_threads_thread_cancel(fossil_threads_thread_t *thread) {
+    if (!thread)
+        return FOSSIL_THREADS_EINVAL;
+
+    if (!thread->started)
+        return FOSSIL_THREADS_EPERM;
+
+    if (thread->finished)
+        return FOSSIL_THREADS_EBUSY;
+
+    /* Mark a cooperative cancellation request */
+    thread->cancel_requested = 1;
 
 #if defined(_WIN32)
-    /* Windows has no safe cancellation API like pthread_cancel. 
-       We can attempt TerminateThread only if truly necessary, but 
-       it is unsafe (leaks, locks left held, etc.). So we mark as EPERM. */
-    (void)thread;
-    return FOSSIL_THREADS_EPERM; /* No cooperative cancel */
+    /*
+      Windows path:
+      We cannot safely call TerminateThread(), so instead,
+      we can signal the thread if it has a cancel event handle.
+      Future extension could create a manual-reset event.
+    */
+    if (thread->handle) {
+        /* placeholder: could SetEvent(thread->cancel_event); if implemented */
+        /* For now, we just validate handle for safety */
+        HANDLE h = (HANDLE)thread->handle;
+        DWORD exitCode = 0;
+        if (GetExitCodeThread(h, &exitCode)) {
+            if (exitCode != STILL_ACTIVE)
+                thread->finished = 1;
+        } else {
+            return FOSSIL_THREADS_EINTERNAL;
+        }
+    }
+
+#elif defined(__unix__) || defined(__APPLE__)
+    /*
+      POSIX path:
+      Safe cooperative model — no pthread_cancel().
+      We can optionally ping the thread handle to ensure it’s valid.
+    */
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        int kill_ret = pthread_kill(*pt, 0);  /* signal 0 = validity check */
+        if (kill_ret != 0 && kill_ret != ESRCH) {
+            return FOSSIL_THREADS_EINTERNAL;  /* invalid or dead thread */
+        }
+    }
 
 #else
-    /* POSIX pthreads */
-    pthread_t *pth = (pthread_t *)thread->handle;
-
-    /* Only attempt cancel if joinable and started */
-    if (!thread->started || thread->finished) {
-        return FOSSIL_THREADS_EINVAL;
-    }
-
-    int rc = pthread_cancel(*pth);
-    if (rc == 0) {
-        return FOSSIL_THREADS_OK;
-    } else if (rc == ESRCH) {
-        return FOSSIL_THREADS_ENOENT; /* Thread not found */
-    } else {
-        return FOSSIL_THREADS_EPERM; /* Probably non-cancelable or invalid */
-    }
+    /* Unsupported or unknown platform */
+    return FOSSIL_THREADS_EINTERNAL;
 #endif
+
+    return FOSSIL_THREADS_OK;
 }
 
 int fossil_threads_thread_is_running(

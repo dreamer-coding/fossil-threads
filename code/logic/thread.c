@@ -34,6 +34,7 @@
 #  include <windows.h>
 #  include <process.h>
 #else
+#  define _GNU_SOURCE
 #  include <pthread.h>
 #  include <time.h>
 #  include <unistd.h>

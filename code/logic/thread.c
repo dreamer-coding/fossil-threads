@@ -65,6 +65,16 @@ void fossil_threads_thread_init(fossil_threads_thread_t *t) {
         t->priority = 0;
         t->affinity = -1;
         t->policy = 0;
+        t->started = 0;
+        t->finished = 0;
+        t->cancel_requested = 0;
+        t->retval = NULL;
+        t->handle = NULL;
+        t->id = 0;
+        t->start_time_ns = 0;
+        t->end_time_ns = 0;
+        t->exec_time_ns = 0;
+        t->exit_code = 0;
     }
 }
 
@@ -185,10 +195,7 @@ unsigned long fossil_threads_thread_id(void) {
     return (unsigned long)GetCurrentThreadId();
 }
 
-/* ============================================================================
-** POSIX Implementation
-** --------------------------------------------------------------------------*/
-#else
+#else /* POSIX */
 
 static void* fossil__thread_start(void *param) {
     fossil__thread_start_ctx *ctx = (fossil__thread_start_ctx*)param;
@@ -330,19 +337,23 @@ int fossil_threads_thread_equal(
     if (t1 == t2) return 1;
     if (!t1 || !t2) return 0;
 #if defined(_WIN32)
-    if (t1->id && t2->id) return (t1->id == t2->id);
-    if (!t1->handle || !t2->handle) return 0;
-    return (t1->handle == t2->handle);
+    // Compare by thread id if available, else by handle
+    if (t1->id && t2->id)
+        return (t1->id == t2->id);
+    if (t1->handle && t2->handle)
+        return (t1->handle == t2->handle);
+    return 0;
 #else
-    if (!t1->handle || !t2->handle) return 0;
-    {
+    // Compare by pthread_t if handles exist, else by id
+    if (t1->handle && t2->handle) {
         const pthread_t *p1 = (const pthread_t*)t1->handle;
         const pthread_t *p2 = (const pthread_t*)t2->handle;
-        if (!p1 || !p2) return 0;
-        return pthread_equal(*p1, *p2) != 0;
+        if (p1 && p2)
+            return pthread_equal(*p1, *p2) != 0;
     }
+    // Fallback: compare stored thread id
     size_t cmp_size = sizeof(t1->id) < sizeof(t2->id) ? sizeof(t1->id) : sizeof(t2->id);
-    return (memcmp(&t1->id, &t2->id, cmp_size) == 0);
+    return memcmp(&t1->id, &t2->id, cmp_size) == 0;
 #endif
 }
 
@@ -355,23 +366,130 @@ int fossil_threads_thread_equal(
 int fossil_threads_thread_set_priority(fossil_threads_thread_t *thread, int priority) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
     thread->priority = priority;
+#if defined(_WIN32)
+    if (thread->handle) {
+        int win_prio;
+        switch (priority) {
+            case 2: win_prio = THREAD_PRIORITY_HIGHEST; break;
+            case 1: win_prio = THREAD_PRIORITY_ABOVE_NORMAL; break;
+            case 0: win_prio = THREAD_PRIORITY_NORMAL; break;
+            case -1: win_prio = THREAD_PRIORITY_BELOW_NORMAL; break;
+            case -2: win_prio = THREAD_PRIORITY_LOWEST; break;
+            default: win_prio = THREAD_PRIORITY_NORMAL; break;
+        }
+        if (!SetThreadPriority((HANDLE)thread->handle, win_prio))
+            return FOSSIL_THREADS_EINTERNAL;
+    }
+#elif defined(__unix__) || defined(__APPLE__)
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        struct sched_param param;
+        int policy;
+        if (pthread_getschedparam(*pt, &policy, &param) == 0) {
+            int min = sched_get_priority_min(policy);
+            int max = sched_get_priority_max(policy);
+            int mid = (min + max) / 2;
+            if (priority > 0)
+                param.sched_priority = max;
+            else if (priority < 0)
+                param.sched_priority = min;
+            else
+                param.sched_priority = mid;
+            if (pthread_setschedparam(*pt, policy, &param) != 0)
+                return FOSSIL_THREADS_EINTERNAL;
+        }
+    }
+#endif
     return FOSSIL_THREADS_OK;
 }
 
 int fossil_threads_thread_get_priority(const fossil_threads_thread_t *thread) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
-    return thread ? thread->priority : FOSSIL_THREADS_EINVAL;
+#if defined(_WIN32)
+    if (thread->handle) {
+        int win_prio = GetThreadPriority((HANDLE)thread->handle);
+        switch (win_prio) {
+            case THREAD_PRIORITY_HIGHEST: return 2;
+            case THREAD_PRIORITY_ABOVE_NORMAL: return 1;
+            case THREAD_PRIORITY_NORMAL: return 0;
+            case THREAD_PRIORITY_BELOW_NORMAL: return -1;
+            case THREAD_PRIORITY_LOWEST: return -2;
+            default: return 0;
+        }
+    }
+#elif defined(__unix__) || defined(__APPLE__)
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        struct sched_param param;
+        int policy;
+        if (pthread_getschedparam(*pt, &policy, &param) == 0) {
+            int min = sched_get_priority_min(policy);
+            int max = sched_get_priority_max(policy);
+            int mid = (min + max) / 2;
+            if (param.sched_priority == max)
+                return 2;
+            else if (param.sched_priority == min)
+                return -2;
+            else if (param.sched_priority > mid)
+                return 1;
+            else if (param.sched_priority < mid)
+                return -1;
+            else
+                return 0;
+        }
+    }
+#endif
+    return thread->priority;
 }
 
 int fossil_threads_thread_set_affinity(fossil_threads_thread_t *thread, int affinity) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
     thread->affinity = affinity;
+#if defined(_WIN32)
+    if (thread->handle && affinity >= 0) {
+        DWORD_PTR mask = ((DWORD_PTR)1) << affinity;
+        if (SetThreadAffinityMask((HANDLE)thread->handle, mask) == 0)
+            return FOSSIL_THREADS_EINTERNAL;
+    }
+#elif defined(__linux__)
+    if (thread->handle && affinity >= 0) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(affinity, &cpuset);
+        if (pthread_setaffinity_np(*pt, sizeof(cpu_set_t), &cpuset) != 0)
+            return FOSSIL_THREADS_EINTERNAL;
+    }
+#endif
     return FOSSIL_THREADS_OK;
 }
 
 int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
-    return thread ? thread->affinity : FOSSIL_THREADS_EINVAL;
+#if defined(_WIN32)
+    if (thread->handle) {
+        DWORD_PTR mask = 0;
+        DWORD_PTR sysmask = 0;
+        if (GetThreadAffinityMask((HANDLE)thread->handle, &mask, &sysmask)) {
+            for (int i = 0; i < (int)(sizeof(DWORD_PTR) * 8); ++i) {
+                if (mask & (((DWORD_PTR)1) << i))
+                    return i;
+            }
+        }
+    }
+#elif defined(__linux__)
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        cpu_set_t cpuset;
+        if (pthread_getaffinity_np(*pt, sizeof(cpu_set_t), &cpuset) == 0) {
+            for (int i = 0; i < CPU_SETSIZE; ++i) {
+                if (CPU_ISSET(i, &cpuset))
+                    return i;
+            }
+        }
+    }
+#endif
+    return thread->affinity;
 }
 
 /* ============================================================================
@@ -383,15 +501,14 @@ int fossil_threads_thread_cancel(fossil_threads_thread_t *thread) {
     if (thread->finished) return FOSSIL_THREADS_EFINISHED;
 
     thread->cancel_requested = 1;
+
 #if defined(_WIN32)
-    if (!thread->handle)
-        return FOSSIL_THREADS_EINTERNAL;
-    {
-        HANDLE h = (HANDLE)thread->handle;
-        DWORD exitCode = 0;
-        if (!GetExitCodeThread(h, &exitCode))
-            return FOSSIL_THREADS_EINTERNAL;
-    }
+    // No safe way to forcefully cancel a thread on Windows.
+    // Cooperative cancellation only: thread must check cancel_requested.
+    // Optionally, you could use TerminateThread, but it's unsafe.
+    // Here, we just set the flag and return OK.
+    (void)thread;
+    return FOSSIL_THREADS_OK;
 #elif defined(__unix__) || defined(__APPLE__)
     if (!thread->handle)
         return FOSSIL_THREADS_EINTERNAL;
@@ -399,25 +516,49 @@ int fossil_threads_thread_cancel(fossil_threads_thread_t *thread) {
         pthread_t *pt = (pthread_t*)thread->handle;
         if (!pt)
             return FOSSIL_THREADS_EINTERNAL;
-        int k = pthread_kill(*pt, 0);
-        if (k != 0 && k != ESRCH)
+#if defined(PTHREAD_CANCEL_ENABLE)
+        // Try to request cancellation (best effort, cooperative)
+        int rc = pthread_cancel(*pt);
+        if (rc != 0 && rc != ESRCH)
             return FOSSIL_THREADS_EINTERNAL;
+#endif
     }
+    return FOSSIL_THREADS_OK;
 #else
+    // Platform not supported
     return FOSSIL_THREADS_EUNSUPPORTED;
 #endif
-    return FOSSIL_THREADS_OK;
 }
 
 int fossil_threads_thread_is_running(const fossil_threads_thread_t *thread) {
     if (!thread) return 0;
-    if (thread == NULL) return 0;
+#if defined(_WIN32)
+    if (!thread->started || thread->finished) return 0;
+    if (thread->handle) {
+        DWORD code = 0;
+        if (GetExitCodeThread((HANDLE)thread->handle, &code)) {
+            return code == STILL_ACTIVE;
+        }
+    }
     return thread->started && !thread->finished;
+#else
+    if (!thread->started || thread->finished) return 0;
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        if (pt) {
+            int kill_rc = pthread_kill(*pt, 0);
+            if (kill_rc == 0)
+                return 1; // thread is running
+            // ESRCH means no such thread (finished)
+        }
+    }
+    return thread->started && !thread->finished;
+#endif
 }
 
 void* fossil_threads_thread_get_retval(const fossil_threads_thread_t *thread) {
     if (!thread) return NULL;
-    if (thread == NULL || !thread->finished) return NULL;
+    if (!thread->finished) return NULL;
     return thread->retval;
 }
 

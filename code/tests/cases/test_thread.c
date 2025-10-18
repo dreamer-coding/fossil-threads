@@ -53,14 +53,14 @@ FOSSIL_TEARDOWN(c_thread_fixture) {
 
 /* ---------- Lifecycle ---------- */
 
-static void *test_thread_func_noop(void *arg) {
-    (void)arg;
-#if defined(_WIN32)
-    return (void*)(uintptr_t)0;
-#else
-    return NULL;
-#endif
-}
+// static void *test_thread_func_noop(void *arg) {
+//     (void)arg;
+// #if defined(_WIN32)
+//     return (void*)(uintptr_t)0;
+// #else
+//     return NULL;
+// #endif
+// }
 
 // static void *test_thread_func_sleep(void *arg) {
 //     unsigned int ms = arg ? *(unsigned int *)arg : 10;

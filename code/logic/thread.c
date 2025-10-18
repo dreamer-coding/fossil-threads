@@ -80,17 +80,48 @@ void fossil_threads_thread_init(fossil_threads_thread_t *t) {
 
 void fossil_threads_thread_dispose(fossil_threads_thread_t *t) {
     if (!t) return;
+
 #if defined(_WIN32)
     if (t->handle) {
-        CloseHandle((HANDLE)t->handle);
+        HANDLE h = (HANDLE)t->handle;
+        /* Wait for the thread to finish to avoid races where the worker
+         * writes back into the thread object after we zero it. */
+        WaitForSingleObject(h, INFINITE);
+        CloseHandle(h);
         t->handle = NULL;
+    } else {
+        /* If no handle but thread is still running, spin-wait until finished. */
+        while (t->started && !t->finished) {
+            Sleep(1);
+        }
     }
 #else
     if (t->handle) {
-        free((pthread_t*)t->handle);
-        t->handle = NULL;
+        pthread_t *pth = (pthread_t*)t->handle;
+        if (t->joinable) {
+            /* If still joinable, join and free the stored pthread_t. */
+            void *ret = NULL;
+            pthread_join(*pth, &ret);
+            free(pth);
+            t->handle = NULL;
+        } else {
+            /* Detached: cannot pthread_join; wait for the worker to mark finished. */
+            while (t->started && !t->finished) {
+                struct timespec ts = {0, 1000000L}; /* 1ms */
+                nanosleep(&ts, NULL);
+            }
+            free(pth);
+            t->handle = NULL;
+        }
+    } else {
+        /* No handle pointer available (e.g. detach already freed it). Wait for finish. */
+        while (t->started && !t->finished) {
+            struct timespec ts = {0, 1000000L}; /* 1ms */
+            nanosleep(&ts, NULL);
+        }
     }
 #endif
+
     fossil__thread_zero(t);
 }
 
@@ -175,8 +206,14 @@ int fossil_threads_thread_join(fossil_threads_thread_t *thread, void **retval) {
 int fossil_threads_thread_detach(fossil_threads_thread_t *thread) {
     if (!thread || !thread->started) return FOSSIL_THREADS_EINVAL;
     if (!thread->joinable) return FOSSIL_THREADS_EDETACHED;
-    if (thread->handle) CloseHandle((HANDLE)thread->handle);
-    thread->handle = NULL;
+
+    /* Mark as detached so caller will not attempt to join.
+     * Do NOT attempt to forcibly terminate the thread here.
+     *
+     * On Windows we avoid closing the handle here to reduce races
+     * between the creating thread and the worker thread; fossil_threads_thread_dispose()
+     * will perform final cleanup (closing the handle) when appropriate.
+     */
     thread->joinable = 0;
     return FOSSIL_THREADS_OK;
 }
@@ -468,11 +505,13 @@ int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
 #if defined(_WIN32)
     if (thread->handle) {
-        DWORD_PTR mask = 0;
-        DWORD_PTR sysmask = 0;
-        if (GetThreadAffinityMask((HANDLE)thread->handle, &mask, &sysmask)) {
+        /* Windows does not provide GetThreadAffinityMask; use process affinity
+         * as a best-effort fallback to determine an available CPU index. */
+        DWORD_PTR process_mask = 0;
+        DWORD_PTR system_mask = 0;
+        if (GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask)) {
             for (int i = 0; i < (int)(sizeof(DWORD_PTR) * 8); ++i) {
-                if (mask & (((DWORD_PTR)1) << i))
+                if (process_mask & (((DWORD_PTR)1) << i))
                     return i;
             }
         }

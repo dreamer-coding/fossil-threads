@@ -71,9 +71,15 @@ void fossil_threads_thread_init(fossil_threads_thread_t *t) {
 void fossil_threads_thread_dispose(fossil_threads_thread_t *t) {
     if (!t) return;
 #if defined(_WIN32)
-    if (t->handle) CloseHandle((HANDLE)t->handle);
+    if (t->handle) {
+        CloseHandle((HANDLE)t->handle);
+        t->handle = NULL;
+    }
 #else
-    if (t->handle) free((pthread_t*)t->handle);
+    if (t->handle) {
+        free((pthread_t*)t->handle);
+        t->handle = NULL;
+    }
 #endif
     fossil__thread_zero(t);
 }
@@ -100,7 +106,7 @@ static unsigned __stdcall fossil__thread_start(void *param) {
         self->exit_code = (unsigned)(uintptr_t)ret;
     }
 
-    free(ctx);
+    if (ctx) free(ctx);
     unsigned code = (unsigned)(uintptr_t)ret;
     _endthreadex(code);
     return code;
@@ -146,8 +152,8 @@ int fossil_threads_thread_join(fossil_threads_thread_t *thread, void **retval) {
     DWORD w = WaitForSingleObject(h, INFINITE);
     if (w != WAIT_OBJECT_0) return FOSSIL_THREADS_EINTERNAL;
 
-    if (retval) *retval = thread->retval;
-    CloseHandle(h);
+    if (retval) *retval = thread ? thread->retval : NULL;
+    if (h) CloseHandle(h);
     thread->handle = NULL;
     thread->joinable = 0;
     thread->finished = 1;
@@ -206,7 +212,7 @@ static void* fossil__thread_start(void *param) {
         self->exit_code = 0;
     }
 
-    free(ctx);
+    if (ctx) free(ctx);
     return ret;
 }
 
@@ -238,7 +244,11 @@ int fossil_threads_thread_create(
     thread->handle = (void*)pth;
     thread->joinable = 1;
     thread->started = 1;
-    memcpy(&thread->id, pth, sizeof(thread->id) < sizeof(*pth) ? sizeof(thread->id) : sizeof(*pth));
+    if (pth) {
+        memcpy(&thread->id, pth, sizeof(thread->id) < sizeof(*pth) ? sizeof(thread->id) : sizeof(*pth));
+    } else {
+        thread->id = 0;
+    }
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -306,7 +316,10 @@ int fossil_threads_thread_sleep_ms(unsigned int ms) {
 }
 
 unsigned long fossil_threads_thread_id(void) {
-    return (unsigned long)pthread_self();
+    pthread_t tid = pthread_self();
+    unsigned long id = 0;
+    memcpy(&id, &tid, sizeof(id) < sizeof(tid) ? sizeof(id) : sizeof(tid));
+    return id;
 }
 #endif /* platform switch */
 
@@ -318,11 +331,14 @@ int fossil_threads_thread_equal(
     if (!t1 || !t2) return 0;
 #if defined(_WIN32)
     if (t1->id && t2->id) return (t1->id == t2->id);
+    if (!t1->handle || !t2->handle) return 0;
     return (t1->handle == t2->handle);
 #else
-    if (t1->handle && t2->handle) {
+    if (!t1->handle || !t2->handle) return 0;
+    {
         const pthread_t *p1 = (const pthread_t*)t1->handle;
         const pthread_t *p2 = (const pthread_t*)t2->handle;
+        if (!p1 || !p2) return 0;
         return pthread_equal(*p1, *p2) != 0;
     }
     size_t cmp_size = sizeof(t1->id) < sizeof(t2->id) ? sizeof(t1->id) : sizeof(t2->id);
@@ -344,7 +360,7 @@ int fossil_threads_thread_set_priority(fossil_threads_thread_t *thread, int prio
 
 int fossil_threads_thread_get_priority(const fossil_threads_thread_t *thread) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
-    return thread->priority;
+    return thread ? thread->priority : FOSSIL_THREADS_EINVAL;
 }
 
 int fossil_threads_thread_set_affinity(fossil_threads_thread_t *thread, int affinity) {
@@ -355,7 +371,7 @@ int fossil_threads_thread_set_affinity(fossil_threads_thread_t *thread, int affi
 
 int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
     if (!thread) return FOSSIL_THREADS_EINVAL;
-    return thread->affinity;
+    return thread ? thread->affinity : FOSSIL_THREADS_EINVAL;
 }
 
 /* ============================================================================
@@ -368,15 +384,21 @@ int fossil_threads_thread_cancel(fossil_threads_thread_t *thread) {
 
     thread->cancel_requested = 1;
 #if defined(_WIN32)
-    if (thread->handle) {
+    if (!thread->handle)
+        return FOSSIL_THREADS_EINTERNAL;
+    {
         HANDLE h = (HANDLE)thread->handle;
         DWORD exitCode = 0;
         if (!GetExitCodeThread(h, &exitCode))
             return FOSSIL_THREADS_EINTERNAL;
     }
 #elif defined(__unix__) || defined(__APPLE__)
-    if (thread->handle) {
+    if (!thread->handle)
+        return FOSSIL_THREADS_EINTERNAL;
+    {
         pthread_t *pt = (pthread_t*)thread->handle;
+        if (!pt)
+            return FOSSIL_THREADS_EINTERNAL;
         int k = pthread_kill(*pt, 0);
         if (k != 0 && k != ESRCH)
             return FOSSIL_THREADS_EINTERNAL;
@@ -389,11 +411,13 @@ int fossil_threads_thread_cancel(fossil_threads_thread_t *thread) {
 
 int fossil_threads_thread_is_running(const fossil_threads_thread_t *thread) {
     if (!thread) return 0;
+    if (thread == NULL) return 0;
     return thread->started && !thread->finished;
 }
 
 void* fossil_threads_thread_get_retval(const fossil_threads_thread_t *thread) {
-    if (!thread || !thread->finished) return NULL;
+    if (!thread) return NULL;
+    if (thread == NULL || !thread->finished) return NULL;
     return thread->retval;
 }
 

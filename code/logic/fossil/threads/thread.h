@@ -335,7 +335,8 @@ enum {
     FOSSIL_THREADS_EINTERNAL     = 250,  /* generic internal failure */
     FOSSIL_THREADS_EOSFAIL       = 251,  /* underlying OS call failed */
     FOSSIL_THREADS_EUNSUPPORTED  = 252,  /* unsupported operation on platform */
-    FOSSIL_THREADS_ESTATECORRUPT = 253   /* corrupted thread object or memory */
+    FOSSIL_THREADS_ESTATECORRUPT = 253,  /* corrupted thread object or memory */
+    FOSSIL_THREADS_EPARTIAL      = 254  /* partial or best-effort implementation */
 };
 
 /* ---------- Thread Pool API ---------- */

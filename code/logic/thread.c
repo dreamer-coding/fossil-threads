@@ -34,9 +34,9 @@
 #  include <windows.h>
 #  include <process.h>
 #elif defined(__APPLE__)
-#include <mach/mach.h>
-#include <mach/thread_policy.h>
-#include <pthread.h>
+#  include <mach/mach.h>
+#  include <mach/thread_act.h>
+#  include <mach/thread_policy.h>
 #else
 #  define _GNU_SOURCE
 #  include <pthread.h>

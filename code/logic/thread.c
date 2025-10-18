@@ -33,6 +33,10 @@
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #  include <process.h>
+#elif defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/thread_policy.h>
+#include <pthread.h>
 #else
 #  define _GNU_SOURCE
 #  include <pthread.h>
@@ -480,15 +484,22 @@ int fossil_threads_thread_get_priority(const fossil_threads_thread_t *thread) {
     return thread->priority;
 }
 
+/* ============================================================
+ * Set thread affinity (cross-platform)
+ * ============================================================ */
 int fossil_threads_thread_set_affinity(fossil_threads_thread_t *thread, int affinity) {
-    if (!thread) return FOSSIL_THREADS_EINVAL;
+    if (!thread)
+        return FOSSIL_THREADS_EINVAL;
+
     thread->affinity = affinity;
+
 #if defined(_WIN32)
     if (thread->handle && affinity >= 0) {
         DWORD_PTR mask = ((DWORD_PTR)1) << affinity;
         if (SetThreadAffinityMask((HANDLE)thread->handle, mask) == 0)
             return FOSSIL_THREADS_EINTERNAL;
     }
+
 #elif defined(__linux__)
     if (thread->handle && affinity >= 0) {
         pthread_t *pt = (pthread_t*)thread->handle;
@@ -498,18 +509,46 @@ int fossil_threads_thread_set_affinity(fossil_threads_thread_t *thread, int affi
         if (pthread_setaffinity_np(*pt, sizeof(cpu_set_t), &cpuset) != 0)
             return FOSSIL_THREADS_EINTERNAL;
     }
+
+#elif defined(__APPLE__)
+    /* macOS: best-effort grouping (not true CPU pinning) */
+    if (thread->handle && affinity >= 0) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        mach_port_t mach_thread = pthread_mach_thread_np(*pt);
+        thread_affinity_policy_data_t policy = { .affinity_tag = (integer_t)(affinity + 1) };
+
+        kern_return_t kr = thread_policy_set(
+            mach_thread,
+            THREAD_AFFINITY_POLICY,
+            (thread_policy_t)&policy,
+            THREAD_AFFINITY_POLICY_COUNT
+        );
+
+        if (kr != KERN_SUCCESS)
+            return FOSSIL_THREADS_EINTERNAL;
+
+        /* macOS only approximates affinity */
+        return FOSSIL_THREADS_EPARTIAL;
+    }
+
+#else
+    (void)thread; (void)affinity;
+    return FOSSIL_THREADS_EUNSUPPORTED;
 #endif
+
     return FOSSIL_THREADS_OK;
 }
 
+/* ============================================================
+ * Get thread affinity (cross-platform)
+ * ============================================================ */
 int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
-    if (!thread) return FOSSIL_THREADS_EINVAL;
+    if (!thread)
+        return FOSSIL_THREADS_EINVAL;
+
 #if defined(_WIN32)
     if (thread->handle) {
-        /* Windows does not provide GetThreadAffinityMask; use process affinity
-         * as a best-effort fallback to determine an available CPU index. */
-        DWORD_PTR process_mask = 0;
-        DWORD_PTR system_mask = 0;
+        DWORD_PTR process_mask = 0, system_mask = 0;
         if (GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask)) {
             for (int i = 0; i < (int)(sizeof(DWORD_PTR) * 8); ++i) {
                 if (process_mask & (((DWORD_PTR)1) << i))
@@ -517,6 +556,7 @@ int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
             }
         }
     }
+
 #elif defined(__linux__)
     if (thread->handle) {
         pthread_t *pt = (pthread_t*)thread->handle;
@@ -527,13 +567,37 @@ int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
 #else
             int cpusetsize = sizeof(cpuset) * 8;
 #endif
-            for (int i = 0; i < cpusetsize; ++i) {
+            for (int i = 0; i < cpusetsize; ++i)
                 if (CPU_ISSET(i, &cpuset))
                     return i;
-            }
         }
     }
+
+#elif defined(__APPLE__)
+    if (thread->handle) {
+        pthread_t *pt = (pthread_t*)thread->handle;
+        mach_port_t mach_thread = pthread_mach_thread_np(*pt);
+        thread_affinity_policy_data_t policy;
+        mach_msg_type_number_t count = THREAD_AFFINITY_POLICY_COUNT;
+        boolean_t def = FALSE;
+
+        kern_return_t kr = thread_policy_get(
+            mach_thread,
+            THREAD_AFFINITY_POLICY,
+            (thread_policy_t)&policy,
+            &count,
+            &def
+        );
+
+        if (kr == KERN_SUCCESS)
+            return (int)(policy.affinity_tag - 1);
+    }
+
+#else
+    (void)thread;
+    return FOSSIL_THREADS_EUNSUPPORTED;
 #endif
+
     return thread->affinity;
 }
 

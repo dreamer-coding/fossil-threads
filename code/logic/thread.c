@@ -482,7 +482,12 @@ int fossil_threads_thread_get_affinity(const fossil_threads_thread_t *thread) {
         pthread_t *pt = (pthread_t*)thread->handle;
         cpu_set_t cpuset;
         if (pthread_getaffinity_np(*pt, sizeof(cpu_set_t), &cpuset) == 0) {
-            for (int i = 0; i < CPU_SETSIZE; ++i) {
+#if defined(CPU_SETSIZE)
+            int cpusetsize = CPU_SETSIZE;
+#else
+            int cpusetsize = sizeof(cpuset) * 8;
+#endif
+            for (int i = 0; i < cpusetsize; ++i) {
                 if (CPU_ISSET(i, &cpuset))
                     return i;
             }

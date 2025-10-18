@@ -37,12 +37,17 @@
 #  include <mach/mach.h>
 #  include <mach/thread_act.h>
 #  include <mach/thread_policy.h>
+#  include <pthread.h>
+#  include <sched.h>
+#  include <time.h>
+#  include <unistd.h>
+#  include <sys/types.h>
 #else
 #  define _GNU_SOURCE
 #  include <pthread.h>
+#  include <sched.h>
 #  include <time.h>
 #  include <unistd.h>
-#  include <sched.h>
 #  include <sys/types.h>
 #endif
 

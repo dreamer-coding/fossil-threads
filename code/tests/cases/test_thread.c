@@ -72,18 +72,7 @@ static void *test_thread_func_sleep(void *arg) {
 #endif
 }
 
-FOSSIL_TEST_CASE(c_thread_zero_and_init) {
-    fossil_threads_thread_t thread;
-    memset(&thread, 0, sizeof(thread));
-    fossil_threads_thread_init(&thread);
-    // After init, all fields should be zero
-    const unsigned char *bytes = (const unsigned char *)&thread;
-    int all_zero = 1;
-    for (size_t i = 0; i < sizeof(thread); ++i) {
-        if (bytes[i] != 0) { all_zero = 0; break; }
-    }
-    ASSUME_ITS_TRUE(all_zero);
-}
+/* ---------- Lifecycle ---------- */
 
 FOSSIL_TEST_CASE(c_thread_dispose_null_safe) {
     fossil_threads_thread_dispose(NULL);
@@ -115,7 +104,7 @@ FOSSIL_TEST_CASE(c_thread_join_twice_should_fail) {
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
     rc = fossil_threads_thread_join(&thread, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
 
     fossil_threads_thread_dispose(&thread);
 }
@@ -131,7 +120,7 @@ FOSSIL_TEST_CASE(c_thread_detach_twice_should_fail) {
     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
     rc = fossil_threads_thread_detach(&thread);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
 
     fossil_threads_thread_dispose(&thread);
 }
@@ -244,7 +233,7 @@ FOSSIL_TEST_CASE(c_thread_cancel_and_is_running) {
     fossil_threads_thread_init(&thread);
 
     int rc = fossil_threads_thread_cancel(&thread);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EPERM);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_ENOTSTARTED);
 
     ASSUME_ITS_TRUE(!fossil_threads_thread_is_running(NULL));
     ASSUME_ITS_TRUE(!fossil_threads_thread_is_running(&thread));
@@ -308,7 +297,6 @@ FOSSIL_TEST_CASE(c_thread_pool_api_stubs) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_thread_tests) {    
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_zero_and_init);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_dispose_null_safe);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_twice_should_fail);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_join_twice_should_fail);

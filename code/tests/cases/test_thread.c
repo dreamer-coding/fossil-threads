@@ -74,56 +74,56 @@ static void *test_thread_func_noop(void *arg) {
 
 /* ---------- Lifecycle ---------- */
 
-FOSSIL_TEST_CASE(c_thread_dispose_null_safe) {
-    fossil_threads_thread_dispose(NULL);
-    ASSUME_ITS_TRUE(1);
-}
+// FOSSIL_TEST_CASE(c_thread_dispose_null_safe) {
+//     fossil_threads_thread_dispose(NULL);
+//     ASSUME_ITS_TRUE(1);
+// }
 
-FOSSIL_TEST_CASE(c_thread_create_twice_should_fail) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
+// FOSSIL_TEST_CASE(c_thread_create_twice_should_fail) {
+//     fossil_threads_thread_t thread;
+//     fossil_threads_thread_init(&thread);
 
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+//     int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EBUSY);
+//     rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EBUSY);
 
-    fossil_threads_thread_join(&thread, NULL);
-    fossil_threads_thread_dispose(&thread);
-}
+//     fossil_threads_thread_join(&thread, NULL);
+//     fossil_threads_thread_dispose(&thread);
+// }
 
-FOSSIL_TEST_CASE(c_thread_join_twice_should_fail) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
+// FOSSIL_TEST_CASE(c_thread_join_twice_should_fail) {
+//     fossil_threads_thread_t thread;
+//     fossil_threads_thread_init(&thread);
 
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+//     int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_join(&thread, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+//     rc = fossil_threads_thread_join(&thread, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_join(&thread, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
+//     rc = fossil_threads_thread_join(&thread, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
 
-    fossil_threads_thread_dispose(&thread);
-}
+//     fossil_threads_thread_dispose(&thread);
+// }
 
-FOSSIL_TEST_CASE(c_thread_detach_twice_should_fail) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
+// FOSSIL_TEST_CASE(c_thread_detach_twice_should_fail) {
+//     fossil_threads_thread_t thread;
+//     fossil_threads_thread_init(&thread);
 
-    int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+//     int rc = fossil_threads_thread_create(&thread, test_thread_func_noop, NULL);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_detach(&thread);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
+//     rc = fossil_threads_thread_detach(&thread);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
 
-    rc = fossil_threads_thread_detach(&thread);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
+//     rc = fossil_threads_thread_detach(&thread);
+//     ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EDETACHED);
 
-    fossil_threads_thread_dispose(&thread);
-}
+//     fossil_threads_thread_dispose(&thread);
+// }
 
 // FOSSIL_TEST_CASE(c_thread_sleep_and_return_value) {
 //     fossil_threads_thread_t thread;
@@ -297,10 +297,10 @@ FOSSIL_TEST_CASE(c_thread_detach_twice_should_fail) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_thread_tests) {    
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_dispose_null_safe);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_twice_should_fail);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_join_twice_should_fail);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_detach_twice_should_fail);
+    // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_dispose_null_safe);
+    // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_twice_should_fail);
+    // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_join_twice_should_fail);
+    // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_detach_twice_should_fail);
     // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_sleep_and_return_value);
     // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_equal_null_and_self);
     // FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_and_join);

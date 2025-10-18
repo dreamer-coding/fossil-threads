@@ -213,21 +213,6 @@ FOSSIL_TEST_CASE(c_thread_priority_set_get) {
     fossil_threads_thread_dispose(&thread);
 }
 
-FOSSIL_TEST_CASE(c_thread_affinity_set_get) {
-    fossil_threads_thread_t thread;
-    fossil_threads_thread_init(&thread);
-
-    int rc = fossil_threads_thread_set_affinity(&thread, 2);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_EQUAL_I32(fossil_threads_thread_get_affinity(&thread), 2);
-
-    rc = fossil_threads_thread_set_affinity(NULL, 1);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
-    ASSUME_ITS_EQUAL_I32(fossil_threads_thread_get_affinity(NULL), FOSSIL_THREADS_EINVAL);
-
-    fossil_threads_thread_dispose(&thread);
-}
-
 FOSSIL_TEST_CASE(c_thread_cancel_and_is_running) {
     fossil_threads_thread_t thread;
     fossil_threads_thread_init(&thread);
@@ -282,7 +267,6 @@ FOSSIL_TEST_GROUP(c_thread_tests) {
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_yield_and_sleep);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_create_invalid_args);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_priority_set_get);
-    FOSSIL_TEST_ADD(c_thread_fixture, c_thread_affinity_set_get);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_cancel_and_is_running);
     FOSSIL_TEST_ADD(c_thread_fixture, c_thread_get_retval);
 

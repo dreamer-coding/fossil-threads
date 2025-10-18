@@ -79,10 +79,9 @@ typedef struct fossil_threads_thread {
     int   cancel_requested;    /* 1 if cancel requested (set by cancel()) */
 
     /* --------------------------------------------------------------
-    ** Scheduling and affinity
+    ** Scheduling and priority
     ** -------------------------------------------------------------- */
     int   priority;            /* thread priority (FOSSIL_THREADS_PRIORITY_*) */
-    int   affinity;            /* CPU affinity mask or index (if supported) */
     int   policy;              /* scheduling policy hint (extended use) */
 
     /* --------------------------------------------------------------
@@ -234,26 +233,6 @@ FOSSIL_THREADS_API int fossil_threads_thread_set_priority(
  * @return Priority value, or negative error code.
  */
 FOSSIL_THREADS_API int fossil_threads_thread_get_priority(
-    const fossil_threads_thread_t *thread
-);
-
-/*
- * Set thread CPU affinity.
- * @param thread Pointer to the thread structure.
- * @param affinity CPU affinity mask (OS-dependent).
- * @return 0 on success, error code otherwise.
- */
-FOSSIL_THREADS_API int fossil_threads_thread_set_affinity(
-    fossil_threads_thread_t *thread,
-    int affinity
-);
-
-/*
- * Get thread CPU affinity.
- * @param thread Pointer to the thread structure.
- * @return Affinity mask, or negative error code.
- */
-FOSSIL_THREADS_API int fossil_threads_thread_get_affinity(
     const fossil_threads_thread_t *thread
 );
 
@@ -584,23 +563,6 @@ namespace fossil {
              */
             int get_priority() const {
                 return fossil_threads_thread_get_priority(&native_);
-            }
-
-            /**
-             * @brief Set thread CPU affinity.
-             * @param affinity CPU affinity mask (OS-dependent).
-             * @return 0 on success, error code otherwise.
-             */
-            int set_affinity(int affinity) {
-                return fossil_threads_thread_set_affinity(&native_, affinity);
-            }
-
-            /**
-             * @brief Get thread CPU affinity.
-             * @return Affinity mask, or negative error code.
-             */
-            int get_affinity() const {
-                return fossil_threads_thread_get_affinity(&native_);
             }
 
             /**

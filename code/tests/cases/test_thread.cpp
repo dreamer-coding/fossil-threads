@@ -180,17 +180,6 @@ FOSSIL_TEST_CASE(cpp_thread_priority_set_get) {
     ASSUME_ITS_EQUAL_I32(fossil_threads_thread_get_priority(NULL), FOSSIL_THREADS_EINVAL);
 }
 
-FOSSIL_TEST_CASE(cpp_thread_affinity_set_get) {
-    Thread thread;
-    int rc = thread.set_affinity(2);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_OK);
-    ASSUME_ITS_EQUAL_I32(thread.get_affinity(), 2);
-
-    rc = fossil_threads_thread_set_affinity(NULL, 1);
-    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_EINVAL);
-    ASSUME_ITS_EQUAL_I32(fossil_threads_thread_get_affinity(NULL), FOSSIL_THREADS_EINVAL);
-}
-
 FOSSIL_TEST_CASE(cpp_thread_cancel_and_is_running) {
     Thread thread;
     int rc = thread.cancel();
@@ -236,7 +225,6 @@ FOSSIL_TEST_GROUP(cpp_thread_tests) {
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_yield_and_sleep);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_invalid_args);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_priority_set_get);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_affinity_set_get);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_cancel_and_is_running);
     FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_get_retval);
 

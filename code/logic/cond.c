@@ -49,12 +49,12 @@ int fossil_threads_cond_init(fossil_threads_cond_t *c) {
 
 #if defined(_WIN32)
     CONDITION_VARIABLE *cv = (CONDITION_VARIABLE*)malloc(sizeof(CONDITION_VARIABLE));
-    if (!cv) return FOSSIL_THREADS_COND_EINTERNAL;
+    if (!cv) return FOSSIL_THREADS_COND_ENOMEM;
     InitializeConditionVariable(cv);
     c->handle = cv;
 #else
     pthread_cond_t *pc = (pthread_cond_t*)malloc(sizeof(pthread_cond_t));
-    if (!pc) return FOSSIL_THREADS_COND_EINTERNAL;
+    if (!pc) return FOSSIL_THREADS_COND_ENOMEM;
     if (pthread_cond_init(pc, NULL) != 0) {
         free(pc);
         return FOSSIL_THREADS_COND_EINTERNAL;
@@ -62,6 +62,8 @@ int fossil_threads_cond_init(fossil_threads_cond_t *c) {
     c->handle = pc;
 #endif
     c->valid = 1;
+    c->is_broadcast = 0;
+    c->waiters = 0;
     return FOSSIL_THREADS_COND_OK;
 }
 
@@ -86,19 +88,32 @@ void fossil_threads_cond_dispose(fossil_threads_cond_t *c) {
 int fossil_threads_cond_wait(fossil_threads_cond_t *c, fossil_threads_mutex_t *m) {
     if (!c || !m || !c->valid || !m->valid) return FOSSIL_THREADS_COND_EINVAL;
 
+    c->waiters++;
 #if defined(_WIN32)
     if (!SleepConditionVariableCS(
         (CONDITION_VARIABLE*)c->handle,
         (CRITICAL_SECTION*)m->handle,
         INFINITE))
     {
+        c->waiters--;
         return FOSSIL_THREADS_COND_EINTERNAL;
     }
+    c->waiters--;
     return FOSSIL_THREADS_COND_OK;
 #else
     int rc = pthread_cond_wait((pthread_cond_t*)c->handle,
                                (pthread_mutex_t*)m->handle);
-    return rc == 0 ? FOSSIL_THREADS_COND_OK : rc;
+    c->waiters--;
+    if (rc == 0) return FOSSIL_THREADS_COND_OK;
+    if (rc == EINVAL) return FOSSIL_THREADS_COND_EINVAL;
+    if (rc == EAGAIN) return FOSSIL_THREADS_COND_EAGAIN;
+    if (rc == ENOMEM) return FOSSIL_THREADS_COND_ENOMEM;
+    if (rc == EPERM)  return FOSSIL_THREADS_COND_EPERM;
+    if (rc == EBUSY)  return FOSSIL_THREADS_COND_EBUSY;
+    if (rc == EDEADLK) return FOSSIL_THREADS_COND_EDEADLK;
+    if (rc == ENOENT) return FOSSIL_THREADS_COND_ENOENT;
+    if (rc == ENOSYS) return FOSSIL_THREADS_COND_ENOSYS;
+    return FOSSIL_THREADS_COND_EINTERNAL;
 #endif
 }
 
@@ -107,12 +122,14 @@ int fossil_threads_cond_timedwait(fossil_threads_cond_t *c,
                                   unsigned int ms) {
     if (!c || !m || !c->valid || !m->valid) return FOSSIL_THREADS_COND_EINVAL;
 
+    c->waiters++;
 #if defined(_WIN32)
     BOOL ok = SleepConditionVariableCS(
         (CONDITION_VARIABLE*)c->handle,
         (CRITICAL_SECTION*)m->handle,
         ms
     );
+    c->waiters--;
     if (ok) return FOSSIL_THREADS_COND_OK;
     if (GetLastError() == ERROR_TIMEOUT) return FOSSIL_THREADS_COND_ETIMEDOUT;
     return FOSSIL_THREADS_COND_EINTERNAL;
@@ -130,30 +147,77 @@ int fossil_threads_cond_timedwait(fossil_threads_cond_t *c,
     int rc = pthread_cond_timedwait((pthread_cond_t*)c->handle,
                                     (pthread_mutex_t*)m->handle,
                                     &ts);
+    c->waiters--;
     if (rc == 0) return FOSSIL_THREADS_COND_OK;
     if (rc == ETIMEDOUT) return FOSSIL_THREADS_COND_ETIMEDOUT;
-    return rc;
+    if (rc == EINVAL) return FOSSIL_THREADS_COND_EINVAL;
+    if (rc == EAGAIN) return FOSSIL_THREADS_COND_EAGAIN;
+    if (rc == ENOMEM) return FOSSIL_THREADS_COND_ENOMEM;
+    if (rc == EPERM)  return FOSSIL_THREADS_COND_EPERM;
+    if (rc == EBUSY)  return FOSSIL_THREADS_COND_EBUSY;
+    if (rc == EDEADLK) return FOSSIL_THREADS_COND_EDEADLK;
+    if (rc == ENOENT) return FOSSIL_THREADS_COND_ENOENT;
+    if (rc == ENOSYS) return FOSSIL_THREADS_COND_ENOSYS;
+    return FOSSIL_THREADS_COND_EINTERNAL;
 #endif
 }
 
 int fossil_threads_cond_signal(fossil_threads_cond_t *c) {
     if (!c || !c->valid) return FOSSIL_THREADS_COND_EINVAL;
 
+    c->is_broadcast = 0;
 #if defined(_WIN32)
     WakeConditionVariable((CONDITION_VARIABLE*)c->handle);
     return FOSSIL_THREADS_COND_OK;
 #else
-    return pthread_cond_signal((pthread_cond_t*)c->handle);
+    int rc = pthread_cond_signal((pthread_cond_t*)c->handle);
+    if (rc == 0) return FOSSIL_THREADS_COND_OK;
+    if (rc == EINVAL) return FOSSIL_THREADS_COND_EINVAL;
+    if (rc == ENOMEM) return FOSSIL_THREADS_COND_ENOMEM;
+    if (rc == EBUSY) return FOSSIL_THREADS_COND_EBUSY;
+    if (rc == EPERM) return FOSSIL_THREADS_COND_EPERM;
+    if (rc == EDEADLK) return FOSSIL_THREADS_COND_EDEADLK;
+    if (rc == ENOENT) return FOSSIL_THREADS_COND_ENOENT;
+    if (rc == EAGAIN) return FOSSIL_THREADS_COND_EAGAIN;
+    if (rc == ENOSYS) return FOSSIL_THREADS_COND_ENOSYS;
+    return FOSSIL_THREADS_COND_EINTERNAL;
 #endif
 }
 
 int fossil_threads_cond_broadcast(fossil_threads_cond_t *c) {
     if (!c || !c->valid) return FOSSIL_THREADS_COND_EINVAL;
 
+    c->is_broadcast = 1;
 #if defined(_WIN32)
     WakeAllConditionVariable((CONDITION_VARIABLE*)c->handle);
     return FOSSIL_THREADS_COND_OK;
 #else
-    return pthread_cond_broadcast((pthread_cond_t*)c->handle);
+    int rc = pthread_cond_broadcast((pthread_cond_t*)c->handle);
+    if (rc == 0) return FOSSIL_THREADS_COND_OK;
+    if (rc == EINVAL) return FOSSIL_THREADS_COND_EINVAL;
+    if (rc == ENOMEM) return FOSSIL_THREADS_COND_ENOMEM;
+    if (rc == EBUSY) return FOSSIL_THREADS_COND_EBUSY;
+    if (rc == EPERM) return FOSSIL_THREADS_COND_EPERM;
+    if (rc == EDEADLK) return FOSSIL_THREADS_COND_EDEADLK;
+    if (rc == ENOENT) return FOSSIL_THREADS_COND_ENOENT;
+    if (rc == EAGAIN) return FOSSIL_THREADS_COND_EAGAIN;
+    if (rc == ENOSYS) return FOSSIL_THREADS_COND_ENOSYS;
+    return FOSSIL_THREADS_COND_EINTERNAL;
 #endif
+}
+
+int fossil_threads_cond_is_valid(const fossil_threads_cond_t *c) {
+    if (!c) return 0;
+    return c->valid ? 1 : 0;
+}
+
+int fossil_threads_cond_waiter_count(const fossil_threads_cond_t *c) {
+    if (!c || !c->valid) return -1;
+    return c->waiters;
+}
+
+int fossil_threads_cond_reset(fossil_threads_cond_t *c) {
+    if (!c) return FOSSIL_THREADS_COND_EINVAL;
+    fossil_threads_cond_dispose(c);
+    return fossil_threads_cond_init(c);
 }

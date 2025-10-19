@@ -43,8 +43,10 @@ extern "C"
 /* ---------- Types ---------- */
 
 typedef struct fossil_threads_cond {
-    void *handle;  /* CONDITION_VARIABLE* on Win, pthread_cond_t* on POSIX */
+    void *handle;      /* CONDITION_VARIABLE* on Win, pthread_cond_t* on POSIX */
     int   valid;
+    int   is_broadcast; /* 1 if last signal was broadcast, 0 otherwise */
+    int   waiters;      /* Number of threads currently waiting */
 } fossil_threads_cond_t;
 
 /* ---------- Lifecycle ---------- */
@@ -130,12 +132,47 @@ FOSSIL_THREADS_API int fossil_threads_cond_signal(fossil_threads_cond_t *c);
  */
 FOSSIL_THREADS_API int fossil_threads_cond_broadcast(fossil_threads_cond_t *c);
 
+/**
+ * @brief Check if the condition variable is valid.
+ *
+ * Returns nonzero if the condition variable is initialized and valid, zero otherwise.
+ *
+ * @param c Pointer to the condition variable.
+ * @return 1 if valid, 0 if not.
+ */
+FOSSIL_THREADS_API int fossil_threads_cond_is_valid(const fossil_threads_cond_t *c);
+
+/**
+ * @brief Get the number of threads currently waiting on the condition variable.
+ *
+ * @param c Pointer to the condition variable.
+ * @return Number of waiting threads, or negative value on error.
+ */
+FOSSIL_THREADS_API int fossil_threads_cond_waiter_count(const fossil_threads_cond_t *c);
+
+/**
+ * @brief Reset the condition variable to its initial state.
+ *
+ * This function disposes and re-initializes the condition variable.
+ *
+ * @param c Pointer to the condition variable.
+ * @return FOSSIL_THREADS_COND_OK on success, or error code on failure.
+ */
+FOSSIL_THREADS_API int fossil_threads_cond_reset(fossil_threads_cond_t *c);
+
 /* Error codes */
 enum {
-    FOSSIL_THREADS_COND_OK        = 0,
-    FOSSIL_THREADS_COND_EINVAL    = 22,
-    FOSSIL_THREADS_COND_ETIMEDOUT = 110,
-    FOSSIL_THREADS_COND_EINTERNAL = 199
+    FOSSIL_THREADS_COND_OK         = 0,
+    FOSSIL_THREADS_COND_EINVAL     = 22,   /* Invalid argument */
+    FOSSIL_THREADS_COND_ETIMEDOUT  = 110,  /* Timeout occurred */
+    FOSSIL_THREADS_COND_EINTERNAL  = 199,  /* Internal error */
+    FOSSIL_THREADS_COND_ENOMEM     = 12,   /* Out of memory */
+    FOSSIL_THREADS_COND_EBUSY      = 16,   /* Resource busy */
+    FOSSIL_THREADS_COND_EPERM      = 1,    /* Operation not permitted */
+    FOSSIL_THREADS_COND_EDEADLK    = 35,   /* Deadlock detected */
+    FOSSIL_THREADS_COND_ENOENT     = 2,    /* No such file or directory (resource) */
+    FOSSIL_THREADS_COND_EAGAIN     = 11,   /* Try again (resource temporarily unavailable) */
+    FOSSIL_THREADS_COND_ENOSYS     = 38    /* Function not implemented */
 };
 
 #ifdef __cplusplus
@@ -246,6 +283,35 @@ namespace threads {
          * @return Pointer to the fossil_threads_cond_t structure.
          */
         fossil_threads_cond_t* native_handle() { return &cond_; }
+
+        /**
+         * @brief Checks if the condition variable is valid.
+         *
+         * @return true if valid, false otherwise.
+         */
+        bool is_valid() const {
+            return fossil_threads_cond_is_valid(&cond_) != 0;
+        }
+
+        /**
+         * @brief Returns the number of threads currently waiting on the condition variable.
+         *
+         * @return Number of waiting threads, or negative value on error.
+         */
+        int waiter_count() const {
+            return fossil_threads_cond_waiter_count(&cond_);
+        }
+
+        /**
+         * @brief Resets the condition variable to its initial state.
+         *
+         * Disposes and re-initializes the condition variable.
+         *
+         * @return FOSSIL_THREADS_COND_OK on success, or error code on failure.
+         */
+        int reset() {
+            return fossil_threads_cond_reset(&cond_);
+        }
 
     private:
         fossil_threads_cond_t cond_; /**< The underlying condition variable structure. */

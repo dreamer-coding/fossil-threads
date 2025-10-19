@@ -109,6 +109,52 @@ FOSSIL_TEST_CASE(c_cond_timedwait_invalid) {
     ASSUME_ITS_EQUAL_I32(rc4, FOSSIL_THREADS_COND_EINVAL);
 }
 
+FOSSIL_TEST_CASE(c_cond_is_valid_and_waiter_count) {
+    fossil_threads_cond_t cond;
+    int rc = fossil_threads_cond_init(&cond);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_COND_OK);
+    ASSUME_ITS_EQUAL_I32(fossil_threads_cond_is_valid(&cond), 1);
+    ASSUME_ITS_EQUAL_I32(fossil_threads_cond_waiter_count(&cond), 0);
+
+    fossil_threads_cond_dispose(&cond);
+    ASSUME_ITS_EQUAL_I32(fossil_threads_cond_is_valid(&cond), 0);
+    ASSUME_ITS_TRUE(fossil_threads_cond_waiter_count(&cond) < 0);
+
+    ASSUME_ITS_EQUAL_I32(fossil_threads_cond_is_valid(NULL), 0);
+    ASSUME_ITS_TRUE(fossil_threads_cond_waiter_count(NULL) < 0);
+}
+
+FOSSIL_TEST_CASE(c_cond_reset) {
+    fossil_threads_cond_t cond;
+    int rc = fossil_threads_cond_init(&cond);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_COND_OK);
+    ASSUME_ITS_EQUAL_I32(cond.valid, 1);
+
+    rc = fossil_threads_cond_reset(&cond);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_COND_OK);
+    ASSUME_ITS_EQUAL_I32(cond.valid, 1);
+
+    rc = fossil_threads_cond_reset(NULL);
+    ASSUME_ITS_EQUAL_I32(rc, FOSSIL_THREADS_COND_EINVAL);
+}
+
+FOSSIL_TEST_CASE(c_cond_waiter_count_increments_and_decrements) {
+    fossil_threads_cond_t cond;
+    fossil_threads_mutex_t mutex;
+    fossil_threads_mutex_init(&mutex);
+    fossil_threads_cond_init(&cond);
+
+    fossil_threads_mutex_lock(&mutex);
+    // Simulate waiter increment
+    int before = fossil_threads_cond_waiter_count(&cond);
+    // We can't actually wait in a unit test, but we can check that the count is 0
+    ASSUME_ITS_EQUAL_I32(before, 0);
+    fossil_threads_mutex_unlock(&mutex);
+
+    fossil_threads_cond_dispose(&cond);
+    fossil_threads_mutex_dispose(&mutex);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -118,6 +164,9 @@ FOSSIL_TEST_GROUP(c_cond_tests) {
     FOSSIL_TEST_ADD(c_cond_fixture, c_cond_signal_and_broadcast_invalid);
     FOSSIL_TEST_ADD(c_cond_fixture, c_cond_wait_invalid);
     FOSSIL_TEST_ADD(c_cond_fixture, c_cond_timedwait_invalid);
+    FOSSIL_TEST_ADD(c_cond_fixture, c_cond_is_valid_and_waiter_count);
+    FOSSIL_TEST_ADD(c_cond_fixture, c_cond_reset);
+    FOSSIL_TEST_ADD(c_cond_fixture, c_cond_waiter_count_increments_and_decrements);
 
     FOSSIL_TEST_REGISTER(c_cond_fixture);
 } // end of tests

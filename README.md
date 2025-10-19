@@ -43,7 +43,7 @@ Add the `fossil-threads.wrap` file in your `subprojects` directory and include t
 ```ini
 [wrap-git]
 url = https://github.com/fossillogic/fossil-threads.git
-revision = v0.1.2
+revision = v0.1.1
 
 [provide]
 dependency_names = fossil-threads

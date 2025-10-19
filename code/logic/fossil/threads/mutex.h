@@ -217,7 +217,7 @@ namespace fossil {
              * @brief Construct and initialize the underlying C mutex.
              */
             Mutex()
-            : m_{nullptr, 0}, initialized_{false}
+            : m_{nullptr, 0, 0, 0}, initialized_{false}
             {
             int rc = fossil_threads_mutex_init(&m_);
             if (rc != FOSSIL_THREADS_MUTEX_OK) {
@@ -240,7 +240,7 @@ namespace fossil {
              * @brief Move constructor.
              */
             Mutex(Mutex&& other) noexcept
-            : m_(std::exchange(other.m_, fossil_threads_mutex_t{nullptr, 0})),
+            : m_(std::exchange(other.m_, fossil_threads_mutex_t{nullptr, 0, 0, 0})),
               initialized_(other.initialized_.load(std::memory_order_acquire))
             {
             other.initialized_.store(false, std::memory_order_release);
@@ -254,7 +254,7 @@ namespace fossil {
                 if (initialized_.load(std::memory_order_acquire)) {
                 fossil_threads_mutex_dispose(&m_);
                 }
-                m_ = std::exchange(other.m_, fossil_threads_mutex_t{nullptr, 0});
+                m_ = std::exchange(other.m_, fossil_threads_mutex_t{nullptr, 0, 0, 0});
                 initialized_.store(other.initialized_.load(std::memory_order_acquire),
                           std::memory_order_release);
                 other.initialized_.store(false, std::memory_order_release);

@@ -208,16 +208,16 @@ FOSSIL_TEST(cpp_thread_mutex_raii_exceptions) {
 }
 
 FOSSIL_TEST_GROUP(cpp_mutex_tests) {
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_trylock_success);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_lock_blocks_other_thread_trylock);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_lock_unlock_sequence);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_basic);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_lockguard);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_move_ctor);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_move_assign);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_try_lock_for);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_try_lock_until);
-    FOSSIL_TEST_ADD(cpp_mutex_fixture, cpp_thread_mutex_raii_exceptions);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_trylock_success);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_lock_blocks_other_thread_trylock);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_lock_unlock_sequence);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_basic);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_lockguard);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_move_ctor);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_move_assign);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_try_lock_for);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_try_lock_until);
+    FOSSIL_ADD_TEST(cpp_mutex_fixture, cpp_thread_mutex_raii_exceptions);
 
-    FOSSIL_TEST_REGISTER(cpp_mutex_fixture);
+    FOSSIL_ADD_SUITE(cpp_mutex_fixture);
 } // end of tests

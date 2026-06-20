@@ -214,19 +214,19 @@ FOSSIL_TEST(cpp_thread_get_retval) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_thread_tests) {    
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_dispose_null_safe);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_twice_should_fail);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_join_twice_should_fail);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_detach_twice_should_fail);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_sleep_and_return_value);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_equal_null_and_self);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_join);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_and_detach);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_yield_and_sleep);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_create_invalid_args);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_priority_set_get);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_cancel_and_is_running);
-    FOSSIL_TEST_ADD(cpp_thread_fixture, cpp_thread_get_retval);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_dispose_null_safe);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_create_twice_should_fail);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_join_twice_should_fail);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_detach_twice_should_fail);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_sleep_and_return_value);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_equal_null_and_self);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_create_and_join);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_create_and_detach);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_yield_and_sleep);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_create_invalid_args);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_priority_set_get);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_cancel_and_is_running);
+    FOSSIL_ADD_TEST(cpp_thread_fixture, cpp_thread_get_retval);
 
-    FOSSIL_TEST_REGISTER(cpp_thread_fixture);
+    FOSSIL_ADD_SUITE(cpp_thread_fixture);
 } // end of tests

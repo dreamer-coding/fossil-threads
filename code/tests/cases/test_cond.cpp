@@ -138,13 +138,13 @@ FOSSIL_TEST(cpp_cond_waiter_count_increments_and_decrements) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_cond_tests) {
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_raii_init_and_dispose);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_raii_signal_and_broadcast);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_raii_wait_invalid_mutex);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_raii_wait_and_timedwait);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_is_valid_and_waiter_count);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_reset);
-    FOSSIL_TEST_ADD(cpp_cond_fixture, cpp_cond_waiter_count_increments_and_decrements);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_raii_init_and_dispose);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_raii_signal_and_broadcast);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_raii_wait_invalid_mutex);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_raii_wait_and_timedwait);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_is_valid_and_waiter_count);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_reset);
+    FOSSIL_ADD_TEST(cpp_cond_fixture, cpp_cond_waiter_count_increments_and_decrements);
 
-    FOSSIL_TEST_REGISTER(cpp_cond_fixture);
+    FOSSIL_ADD_SUITE(cpp_cond_fixture);
 } // end of tests

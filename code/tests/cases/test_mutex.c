@@ -183,18 +183,18 @@ FOSSIL_TEST(c_thread_mutex_is_locked_null) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_mutex_tests) {
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_init_dispose);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_lock_unlock);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_trylock);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_init_null);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_dispose_twice);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_lock_invalid);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_unlock_invalid);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_trylock_invalid);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_reset);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_is_locked_unlocked);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_is_initialized_null);
-    FOSSIL_TEST_ADD(c_mutex_fixture, c_thread_mutex_is_locked_null);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_init_dispose);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_lock_unlock);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_trylock);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_init_null);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_dispose_twice);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_lock_invalid);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_unlock_invalid);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_trylock_invalid);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_reset);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_is_locked_unlocked);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_is_initialized_null);
+    FOSSIL_ADD_TEST(c_mutex_fixture, c_thread_mutex_is_locked_null);
 
-    FOSSIL_TEST_REGISTER(c_mutex_fixture);
+    FOSSIL_ADD_SUITE(c_mutex_fixture);
 } // end of tests
